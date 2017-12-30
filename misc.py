@@ -17,18 +17,8 @@ from collections import OrderedDict
 import PIL.Image
 
 #----------------------------------------------------------------------------
-# Convenience wrappers for pickle.
-
-def load_pkl(filename):
-    with open(filename, 'rb') as file:
-        return cPickle.load(file)
-
-def save_pkl(obj, filename):
-    with open(filename, 'wb') as file:
-        cPickle.dump(obj, file, protocol=cPickle.HIGHEST_PROTOCOL)
-
-#----------------------------------------------------------------------------
 # Image save utils.
+
 
 def adjust_dynamic_range(data, drange_in, drange_out):
     if drange_in != drange_out:
@@ -36,6 +26,7 @@ def adjust_dynamic_range(data, drange_in, drange_out):
         bias = (np.float32(drange_out[0]) - np.float32(drange_in[0]) * scale)
         data = data * scale + bias
     return data
+
 
 def create_image_grid(images, grid_size=None):
     assert images.ndim == 3 or images.ndim == 4
@@ -54,7 +45,8 @@ def create_image_grid(images, grid_size=None):
         grid[..., y : y + img_h, x : x + img_w] = images[idx]
     return grid
 
-def convert_to_pil_image(image, drange=[0,1]):
+
+def convert_to_pil_image(image, drange=(0,1)):
     assert image.ndim == 2 or image.ndim == 3
     if image.ndim == 3:
         if image.shape[0] == 1:
@@ -67,14 +59,17 @@ def convert_to_pil_image(image, drange=[0,1]):
     format = 'RGB' if image.ndim == 3 else 'L'
     return PIL.Image.fromarray(image, format)
 
-def save_image(image, filename, drange=[0,1]):
+
+def save_image(image, filename, drange=(0,1)):
     convert_to_pil_image(image, drange).save(filename)
 
-def save_image_grid(images, filename, drange=[0,1], grid_size=None):
+
+def save_image_grid(images, filename, drange=(0,1), grid_size=None):
     convert_to_pil_image(create_image_grid(images, grid_size), drange).save(filename)
 
 #----------------------------------------------------------------------------
 # Training utils.
+
 
 def rampup(epoch, rampup_length):
     if epoch < rampup_length:
@@ -84,11 +79,13 @@ def rampup(epoch, rampup_length):
     else:
         return 1.0
 
+
 def rampdown_linear(epoch, num_epochs, rampdown_length):
     if epoch >= num_epochs - rampdown_length:
         return float(num_epochs - epoch) / rampdown_length
     else:
         return 1.0
+
 
 def format_time(seconds):
     s = int(np.round(seconds))
@@ -202,36 +199,6 @@ def create_result_subdir(result_dir, run_desc):
 
     return result_subdir
 
-#----------------------------------------------------------------------------
-# Network topology info.
-
-def print_network_topology_info(layers):
-    import lasagne
-
-    print()
-    print("%-16s%-28s%-10s%-20s%-20s%s" % ('LayerName', 'LayerType', 'Params', 'OutputShape', 'WeightShape', 'Activation'))
-    print("%-16s%-28s%-10s%-20s%-20s%s" % (('---',) * 6))
-    total_params = 0
-
-    for l in lasagne.layers.get_all_layers(layers):
-        type_str        = type(l).__name__
-        nparams         = sum(np.prod(p.get_value().shape) for p in l.get_params(trainable=True))
-        total_params    += nparams
-        outshape        = lasagne.layers.get_output_shape(l)
-        try:
-            weights = l.W.get_value()
-        except AttributeError:
-            try:
-                weights = l.W_param.get_value()
-            except AttributeError:
-                weights = np.zeros(())
-        weight_str      = shape_to_str(weights.shape)
-        act_str         = '' if not hasattr(l, 'nonlinearity') else l.nonlinearity.__name__ if isinstance(l.nonlinearity, types.FunctionType) else type(l.nonlinearity).__name__
-        print("%-16s%-28s%-10d%-20s%-20s%s" % (l.name, type_str, nparams, shape_to_str(outshape), weight_str, act_str))
-
-    print("%-16s%-28s%-10s%-20s%-20s%s" % (('---',) * 6))
-    print("%-16s%-28s%-10d%-20s%-20s%s" % ('Total', '', total_params, '', '', ''))
-    print()
 
 def shape_to_str(shape):
     str = ['%d' % v if v else '?' for v in shape]
@@ -239,6 +206,7 @@ def shape_to_str(shape):
 
 #----------------------------------------------------------------------------
 # Locating results.
+
 
 def locate_result_subdir(run_id):
     if isinstance(run_id, str) and os.path.isdir(run_id):
@@ -259,12 +227,14 @@ def locate_result_subdir(run_id):
             return dirs[0]
     raise IOError('Cannot locate result subdir for run', run_id)
 
+
 def list_network_pkls(result_subdir):
     pkls = sorted(glob.glob(os.path.join(result_subdir, 'network-*.pkl')))
     if len(pkls) >= 1 and os.path.basename(pkls[0]) == 'network-final.pkl':
         pkls.append(pkls[0])
         del pkls[0]
     return pkls
+
 
 def locate_network_pkl(result_subdir, snapshot=None):
     if isinstance(snapshot, str) and os.path.isfile(snapshot):

@@ -13,6 +13,7 @@ import queue as Queue
 
 #----------------------------------------------------------------------------
 
+
 class Dataset:
     def __init__(self,
         h5_path,                                # e.g. 'cifar10-32.h5'
@@ -155,6 +156,7 @@ class Dataset:
 
 #----------------------------------------------------------------------------
 
+
 class WorkerThread(threading.Thread):
     def __init__(self, dataset, queue, order, start_pos):
         threading.Thread.__init__(self)
@@ -171,3 +173,25 @@ class WorkerThread(threading.Thread):
             self.cur_pos = (self.cur_pos + 1) % self.order.size
 
 #----------------------------------------------------------------------------
+
+
+def load_dataset(data_dir, dataset_spec, verbose=False, **spec_overrides):
+    if verbose: print('Loading dataset...')
+    dataset_spec = dict(dataset_spec) # take a copy of the dict before modifying it
+    dataset_spec.update(spec_overrides)
+    dataset_spec['h5_path'] = os.path.join(data_dir, dataset_spec['h5_path'])
+    if 'label_path' in dataset_spec: dataset_spec['label_path'] = os.path.join(data_dir, dataset_spec['label_path'])
+    training_set = Dataset(**dataset_spec)
+    if verbose: print('Dataset shape =', np.int32(training_set.shape).tolist())
+    drange_orig = training_set.get_dynamic_range()
+    if verbose: print('Dynamic range =', drange_orig)
+    return training_set, drange_orig
+
+
+def load_dataset_for_previous_run(result_subdir, **kwargs):
+    dataset = None
+    with open(os.path.join(result_subdir, 'config.txt'), 'rt') as f:
+        for line in f:
+            if line.startswith('dataset = '):
+                exec(line)
+    return load_dataset(dataset, **kwargs)
