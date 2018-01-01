@@ -7,7 +7,7 @@ from torch.nn import functional as F
 class PGConv2d(nn.Module):
     def __init__(self, ch_in, ch_out, ksize=3, stride=1, pad=1,
                  pixelnorm=True, wscale='paper', act='lrelu',
-                 winit='paper'):
+                 winit='impl'):
         super(PGConv2d, self).__init__()
 
         if winit == 'paper':
@@ -29,12 +29,17 @@ class PGConv2d(nn.Module):
         self.eps = 1e-8
 
         self.pixelnorm = pixelnorm
-        self.act = nn.LeakyReLU(0.2) if act == 'lrelu' else nn.ReLU()
+        if act is not None:
+            self.act = nn.LeakyReLU(0.2) if act == 'lrelu' else nn.ReLU()
+        else:
+            self.act = None
         self.conv.cuda()
 
     def forward(self, x):
         h = x * self.c
-        h = self.act(self.conv(h))
+        h = self.conv(h)
+        if self.act is not None:
+            h = self.act(h)
         if self.pixelnorm:
             mean = torch.mean(h * h, 1, keepdim=True)
             dom = torch.rsqrt(mean + self.eps)
@@ -47,8 +52,7 @@ class GFirstBlock(nn.Module):
         super(GFirstBlock, self).__init__()
         self.c1 = PGConv2d(ch_in, ch_out, 4, 1, 3)
         self.c2 = PGConv2d(ch_out, ch_out)
-        self.toRGB = PGConv2d(ch_out, num_channels, ksize=1, pad=0, pixelnorm=False,
-                         winit=None, wscale=None, act=lambda x:x)
+        self.toRGB = PGConv2d(ch_out, num_channels, ksize=1, pad=0, pixelnorm=False, act=None)
         # print('no elo', num_channels)
 
     def forward(self, x, last=False):
@@ -64,8 +68,7 @@ class GBlock(nn.Module):
         super(GBlock, self).__init__()
         self.c1 = PGConv2d(ch_in, ch_out)
         self.c2 = PGConv2d(ch_out, ch_out)
-        self.toRGB = PGConv2d(ch_out, num_channels, ksize=1, pad=0, pixelnorm=False,
-                         winit=None, wscale=None, act=lambda x:x)
+        self.toRGB = PGConv2d(ch_out, num_channels, ksize=1, pad=0, pixelnorm=False, act=None)
 
     def forward(self, x, last=False):
         x = self.c1(x)
@@ -148,8 +151,7 @@ class Generator(nn.Module):
 class DBlock(nn.Module):
     def __init__(self, ch_in, ch_out, num_channels):
         super(DBlock, self).__init__()
-        self.fromRGB = PGConv2d(num_channels, ch_in, ksize=1, pad=0, pixelnorm=False,
-                              winit=None, wscale=None, act=lambda x: x)
+        self.fromRGB = PGConv2d(num_channels, ch_in, ksize=1, pad=0, pixelnorm=False)
         self.c1 = PGConv2d(ch_in, ch_in, pixelnorm=False)
         self.c2 = PGConv2d(ch_in, ch_out, pixelnorm=False)
 
@@ -164,8 +166,7 @@ class DBlock(nn.Module):
 class DLastBlock(nn.Module):
     def __init__(self, ch_in, ch_out, num_channels):
         super(DLastBlock, self).__init__()
-        self.fromRGB = PGConv2d(num_channels, ch_in, ksize=1, pad=0, pixelnorm=False,
-                              winit=None, wscale=None, act=lambda x: x)
+        self.fromRGB = PGConv2d(num_channels, ch_in, ksize=1, pad=0, pixelnorm=False)
         self.stddev = MinibatchStddev()
         self.c1 = PGConv2d(ch_in + 1, ch_in, pixelnorm=False)
         self.c2 = PGConv2d(ch_in, ch_out, 4, 1, 0, pixelnorm=False)
@@ -179,14 +180,8 @@ class DLastBlock(nn.Module):
         return x
 
 
-def allmean(t):
-    from functools import reduce
-    return reduce(lambda acc, x: torch.mean(acc, dim=x, keepdim=True),
-                  list(range(t.dim())), t)
-
-
 def Tstdeps(val):
-    return torch.sqrt(allmean((val - allmean(val))**2) + 1.0e-8)
+    return torch.sqrt(torch.cuda.FloatTensor([((val - val.mean())**2).mean() + 1.0e-8]))
 
 
 class MinibatchStddev(nn.Module):
