@@ -2,11 +2,23 @@ import torch
 import numpy as np
 from torch.autograd import Variable, grad
 
+mixing_factors = None
+
+
+def mul_rowwise(a, b):
+    s = a.size()
+    return (a.view(s[0], -1) * b).view(s)
+
 
 def calc_gradient_penalty(D, depth, alpha, real_data, fake_data, iwass_lambda, iwass_target):
-    mixing_factors = torch.cat([torch.from_numpy(np.random.uniform(size=(1,1)).astype('float32')).expand(1, *real_data.size()[1:]) for _ in range((real_data.size(0)))]).cuda()
+    global mixing_factors
+    if mixing_factors is None:
+        mixing_factors = torch.cuda.FloatTensor(real_data.size(0), 1)
+    mixing_factors.uniform_()
+    # mixing_factors = torch.cat([torch.rand((1,1)).cuda().expand(1, *real_data.size()[1:]) for _ in range((real_data.size(0)))])
+
     # print('depth: sizes in loss: {} {} {}'.format(D.depth, real_data.size(), fake_data.size(), mixing_factors.size()))
-    mixed_data = Variable(real_data * (1 - mixing_factors) + fake_data * mixing_factors, requires_grad=True)
+    mixed_data = Variable(mul_rowwise(real_data, 1 - mixing_factors) + mul_rowwise(fake_data, mixing_factors), requires_grad=True)
     # print('dupa', mixed_data.size())
     D.depth = depth
     mixed_scores = D(mixed_data, alpha)
