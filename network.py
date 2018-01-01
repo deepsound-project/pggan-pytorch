@@ -6,7 +6,7 @@ from torch.nn import functional as F
 
 class PGConv2d(nn.Module):
     def __init__(self, ch_in, ch_out, ksize=3, stride=1, pad=1,
-                 pixelnorm=True, wscale='paper', act='lrelu',
+                 pixelnorm=True, wscale='impl', act='lrelu',
                  winit='impl'):
         super(PGConv2d, self).__init__()
 
