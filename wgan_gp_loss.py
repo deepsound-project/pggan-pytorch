@@ -3,7 +3,7 @@ import numpy as np
 from torch.autograd import Variable, grad
 
 mixing_factors = None
-
+grad_outputs = None
 
 def mul_rowwise(a, b):
     s = a.size()
@@ -11,7 +11,7 @@ def mul_rowwise(a, b):
 
 
 def calc_gradient_penalty(D, depth, alpha, real_data, fake_data, iwass_lambda, iwass_target):
-    global mixing_factors
+    global mixing_factors, grad_outputs
     if mixing_factors is None:
         mixing_factors = torch.cuda.FloatTensor(real_data.size(0), 1)
     mixing_factors.uniform_()
@@ -22,9 +22,12 @@ def calc_gradient_penalty(D, depth, alpha, real_data, fake_data, iwass_lambda, i
     # print('dupa', mixed_data.size())
     D.depth = depth
     mixed_scores = D(mixed_data, alpha)
+    if grad_outputs is None:
+        grad_outputs = torch.cuda.FloatTensor(mixed_scores.size())
+        grad_outputs.fill_(1.)
 
     gradients = grad(outputs=mixed_scores, inputs=mixed_data,
-                              grad_outputs=torch.ones(mixed_scores.size()).cuda(),
+                              grad_outputs=grad_outputs,
                               create_graph=True, retain_graph=True,
                               only_inputs=True)[0]
     gradients = gradients.view(gradients.size(0), -1)
