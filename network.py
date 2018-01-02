@@ -181,7 +181,7 @@ class DLastBlock(nn.Module):
 
 
 def Tstdeps(val):
-    return torch.sqrt(torch.cuda.FloatTensor([((val - val.mean())**2).mean() + 1.0e-8]))
+    return torch.sqrt(((val - val.mean())**2).mean() + 1.0e-8)
 
 
 class MinibatchStddev(nn.Module):
