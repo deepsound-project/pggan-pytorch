@@ -21,32 +21,32 @@ def random_latents(num_latents, latent_size):
 
 
 def train_gan(
-    separate_funcs          = False,
-    D_training_repeats      = 1,
-    G_learning_rate_max     = 0.0010,
-    D_learning_rate_max     = 0.0010,
-    G_smoothing             = 0.999,
-    adam_beta1              = 0.0,
-    adam_beta2              = 0.99,
-    adam_epsilon            = 1e-8,
-    minibatch_default       = 64,
-    minibatch_overrides     = {},
-    rampup_kimg             = 40,
-    lod_initial_resolution  = 4,
-    lod_training_kimg       = 4,
-    lod_transition_kimg     = 4,
-    total_kimg              = 100,
-    drange_net              = (-1,1),
-    drange_viz              = (-1,1),
-    image_grid_size         = None,
-    tick_kimg_default       = 2,
-    tick_kimg_overrides     = {32:5, 64:2, 128:1, 256:5, 512:2, 1024:1},
-    image_snapshot_ticks    = 2,
-    network_snapshot_ticks  = 40,
-    image_grid_type         = 'default',
-    resume_network_pkl      = None,
-    resume_kimg             = 0.0,
-    resume_time             = 0.0):
+    separate_funcs          = False,    # stays this way
+    D_training_repeats      = 1,        # trainer
+    G_learning_rate_max     = 0.0010,   # trainer
+    D_learning_rate_max     = 0.0010,   # trainer
+    G_smoothing             = 0.999,    # ???
+    adam_beta1              = 0.0,      # trainer (init)
+    adam_beta2              = 0.99,     # trainer (init)
+    adam_epsilon            = 1e-8,     # trainer (init)
+    minibatch_default       = 64,       # \
+    minibatch_overrides     = {},       # /-> plugin to change DataLoader / Dataset in Trainer
+    rampup_kimg             = 40,       # every batch - lr_scheduler.step() (plugin or directly)
+    lod_initial_resolution  = 4,        # trainer (init) + dataset
+    lod_training_kimg       = 4,        # trainer + plugin to change dataloader (/ network?)
+    lod_transition_kimg     = 4,        # trainer + plugin to change dataloader (/ network?)
+    total_kimg              = 100,      # trainer
+    drange_net              = (-1,1),   # dataset
+    drange_viz              = (-1,1),   # dataset
+    image_grid_size         = None,     # plugin to create images
+    tick_kimg_default       = 2,        # trainer
+    tick_kimg_overrides     = {32:5, 64:2, 128:1, 256:5, 512:2, 1024:1}, # trainer
+    image_snapshot_ticks    = 2,        # plugin based on ticks for img snapshot
+    network_snapshot_ticks  = 40,       # plugin based on ticks for network snapshot
+    image_grid_type         = 'default',# the heck was that for anyway?
+    resume_network_pkl      = None,     # trainer ?
+    resume_kimg             = 0.0,      # trainer
+    resume_time             = 0.0):     # plugin
 
     print('lod_training_kimg: {}'.format(lod_training_kimg))
     # Load dataset and build networks.
@@ -82,18 +82,19 @@ def train_gan(
     initial_lod = max(resolution_log2 - initial_resolution_log2, 0)
 
     def gen_fn(x):
-        z = G.forward(x.cuda(), 1.0)
+        z = G.forward(x.cuda())
         if z.size(-1) < resolution:
             z = F.upsample(z, size=(resolution, resolution))
         z = z.cpu().data.numpy()
         return z
 
     def first_gen(x):
-        tmp = G.depth
-        G.depth = resolution_log2 - initial_resolution_log2
+        tmp = G.depth, G.alpha
+        (G.depth, G.alpha) = resolution_log2 - initial_resolution_log2, 1.0
         z = gen_fn(x)
-        G.depth = tmp
+        (G.depth, G.alpha) = tmp
         return z
+
     # Save example images.
     snapshot_fake_images = first_gen(snapshot_fake_latents)
     result_subdir = misc.create_result_subdir(config.result_dir, config.run_desc)
@@ -154,14 +155,16 @@ def train_gan(
         depth = resolution_log2 - int(cur_lod) - initial_resolution_log2
         alpha = float(1 - np.fmod(cur_lod, 1.0))
 
+        G.depth = D.depth = depth
+        G.alpha = D.alpha = alpha
         # Calculate loss and optimize
         D_loss = D_real = D_fake = 0.
         for i in range(D_training_repeats):
-            D_loss, D_real, D_fake = wgan_gp_D_loss(D, G, depth, alpha, real_images_expr, fake_latents_in, return_all=True, **config.loss)
+            D_loss, D_real, D_fake = wgan_gp_D_loss(D, G, real_images_expr, fake_latents_in, return_all=True, **config.loss)
             D_loss.backward()
             opt_d.step()
 
-        G_loss = wgan_gp_G_loss(G, D, depth, alpha, fake_latents_in)
+        G_loss = wgan_gp_G_loss(G, D, fake_latents_in)
         G_loss.backward()
         opt_g.step()
 

@@ -116,9 +116,10 @@ class Generator(nn.Module):
         ])
 
         self.depth = 0
+        self.alpha = 1.0
         self.eps = 1e-8
 
-    def forward(self, x, alpha=0.0):
+    def forward(self, x):
         h = x.unsqueeze(2).unsqueeze(3)
         # print('raz', h.size())
         if self.normalize_latents:
@@ -135,7 +136,7 @@ class Generator(nn.Module):
             h = F.upsample(h, scale_factor=2)
             ult = self.blocks[self.depth - 1](h, True)
             # print('trololol', ult.size(), h.size(), self.blocks[self.depth - 2])
-            if alpha > 0.0 and alpha < 1.0:
+            if 0.0 < self.alpha < 1.0:
                 if self.depth > 1:
                     preult_rgb = self.blocks[self.depth - 2].toRGB(h)
                 else:
@@ -143,7 +144,7 @@ class Generator(nn.Module):
                 # print('preult_rgb {}, ult {}'.format(preult_rgb.size(), ult.size()))
             else:
                 preult_rgb = 0
-            h = preult_rgb * (1-alpha) + ult * alpha
+            h = preult_rgb * (1-self.alpha) + ult * self.alpha
         # print('Gen final shape for depth {} and alpha {}: {}'.format(self.depth, alpha, h.size()))
         return h
 
@@ -228,9 +229,10 @@ class Discriminator(nn.Module):
 
         self.linear = nn.Linear(nf(0), 1)
         self.depth = 0
+        self.alpha = 1.0
         self.eps = 1e-8
 
-    def forward(self, x, alpha=0.0):
+    def forward(self, x):
         blockno = self.R - self.depth - 2
         xhighres = x
         h = self.blocks[-(self.depth + 1)](xhighres, True)
@@ -238,16 +240,11 @@ class Discriminator(nn.Module):
         if self.depth > 0:
             h = F.avg_pool2d(h, 2)
             # print('h, ', h.size())
-            if alpha > 0.0:
+            if self.alpha > 0.0:
                 # print('alpha > 0')
                 xlowres = F.avg_pool2d(xhighres, 2)
                 preult_rgb = self.blocks[-self.depth].fromRGB(xlowres)
-                # print('sizes: h {}, preult {}'.format(h.size(), preult_rgb.size()))
-                # print(type(alpha))
-                melted = h * alpha
-                # print(type(melted))
-                # print('preult_rgb, ', preult_rgb.size())
-                h = h * alpha + (1 - alpha) * preult_rgb
+                h = h * self.alpha + (1 - self.alpha) * preult_rgb
                 # print('dunn')
 
         for i in range(self.depth, 0, -1):
