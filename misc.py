@@ -97,6 +97,7 @@ def format_time(seconds):
 #----------------------------------------------------------------------------
 # Logging of stdout and stderr to a file.
 
+
 class OutputLogger(object):
     def __init__(self):
         self.file = None
@@ -119,6 +120,7 @@ class OutputLogger(object):
         if self.file is not None:
             self.file.flush()
 
+
 class TeeOutputStream(object):
     def __init__(self, child_streams, autoflush=False):
         self.child_streams = child_streams
@@ -136,6 +138,7 @@ class TeeOutputStream(object):
 
 output_logger = None
 
+
 def init_output_logging():
     global output_logger
     if output_logger is None:
@@ -143,12 +146,14 @@ def init_output_logging():
         sys.stdout = TeeOutputStream([sys.stdout, output_logger], autoflush=True)
         sys.stderr = TeeOutputStream([sys.stderr, output_logger], autoflush=True)
 
+
 def set_output_log_file(filename):
     if output_logger is not None:
         output_logger.set_log_file(filename)
 
 #----------------------------------------------------------------------------
 # Reporting of results.
+
 
 def create_result_subdir(result_dir, run_desc):
 
@@ -203,6 +208,7 @@ def create_result_subdir(result_dir, run_desc):
 def shape_to_str(shape):
     str = ['%d' % v if v else '?' for v in shape]
     return ', '.join(str) if len(str) else ''
+
 
 #----------------------------------------------------------------------------
 # Locating results.
