@@ -10,15 +10,15 @@
 
 data_dir = 'datasets'
 result_dir = 'results'
+run_desc = 'specs128'
+dataset = 'specs128.h5'
 
 
 #----------------------------------------------------------------------------
 # Baseline configuration from
 # Appendix A.1: "1024x1024 networks used for CelebA-HQ".
 
-run_desc = 'TBD'
 random_seed = 1000
-dataset = None
 
 train = dict(                               # Training parameters:
     func                    = 'train_gan',  # Main training func.
@@ -33,17 +33,18 @@ train = dict(                               # Training parameters:
     minibatch_default       = 16,           # Minibatch size for low resolutions.
     minibatch_overrides     = {256:14, 512:6,  1024:3}, # Minibatch sizes for high resolutions.
     rampup_kimg             = 40,           # Learning rate rampup.
-    lod_initial_resolution  = 4,            # Network resolution at the beginning.
-    lod_training_kimg       = 150,          # Thousands of real images to show before doubling network resolution.
-    lod_transition_kimg     = 150,          # Thousands of real images to show when fading in new layers.
-    total_kimg              = 3000,        # Thousands of real images to show in total.
+    dataset_depth_offset    = 2,
+    # lod_initial_resolution  = 4,            # Network resolution at the beginning.
+    lod_training_kimg       = 4,          # Thousands of real images to show before doubling network resolution.
+    lod_transition_kimg     = 4,          # Thousands of real images to show when fading in new layers.
+    total_kimg              = 100,        # Thousands of real images to show in total.
 )
 
 G = dict(                                   # Generator architecture:
     # func                    = 'G_paper',    # Configurable network template.
     fmap_base               = 512,         # Overall multiplier for the number of feature maps.
     fmap_decay              = 1.0,          # log2 of feature map reduction when doubling the resolution.
-    fmap_max                = 512,          # Maximum number of feature maps on any resolution.
+    fmap_max                = 128,          # Maximum number of feature maps on any resolution.
     latent_size             = 512,          # Dimensionality of the latent vector.
     normalize_latents       = True,         # Normalize latent vector to lie on the unit hypersphere?
     use_wscale              = True,         # Use equalized learning rate?
@@ -53,7 +54,7 @@ G = dict(                                   # Generator architecture:
 
 D = dict(                                   # Discriminator architecture:
     # func                    = 'D_paper',    # Configurable network template.
-    fmap_base               = 512,         # Overall multiplier for the number of feature maps.
+    fmap_base               = 128,         # Overall multiplier for the number of feature maps.
     fmap_decay              = 1.0,          # log2 of feature map reduction when doubling the resolution.
     fmap_max                = 512,          # Maximum number of feature maps on any resolution.
     use_wscale              = True,         # Use equalized learning rate?
@@ -66,10 +67,3 @@ loss = dict(                                # Loss function:
     iwass_target            = 1.0,          # \alpha
 )
 
-#----------------------------------------------------------------------------
-# Configuration overrides for individual experiments.
-
-# Section 6.3: "High-resolution image generation using CelebA-HQ dataset"
-if 1:
-    run_desc = 'specs128'
-    dataset = dict(h5_path='specs128.h5', resolution=128, max_labels=0, mirror_augment=False)
