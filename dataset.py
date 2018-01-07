@@ -14,8 +14,8 @@ class DepthDataset(Dataset):
         max_images                  = None,
         depth                       = 0,
         alpha                       = 1.0,
-        range_in                    = (0,255),
-        range_out                   = (0,1)):
+        range_in                    = (0, 255),
+        range_out                   = (0, 1)):
 
         self.depth = depth
         self.alpha = alpha
@@ -28,18 +28,8 @@ class DepthDataset(Dataset):
         self.resolutions = sorted(list({v.shape[-1] for v in self.h5_file.values()}))
         self.resolution = self.resolutions[-1]
         self.depth_offset = depth_offset
-        # ranges = ((v.min(), v.max()) for v in self.h5_file.values())
-        # INF = 10**9
-        # mmin, mmax = INF, -1
-        # for cmin, cmax in ranges:
-        #     mmin = min(mmin, cmin)
-        #     mmax = max(mmax, cmax)
-        # self.range_in = (mmin, mmax)
-        print(self.resolutions)
         self.range_in = range_in
         self.h5_data = [self.h5_file['data{}x{}'.format(r, r)] for r in self.resolutions]
-        for x in self.h5_data:
-            print(x.shape)
 
         # Look up shapes and dtypes.
         self.shape = self.h5_data[-1].shape
