@@ -36,7 +36,9 @@ class DepthManager(Plugin):
                  tick_kimg_default,
                  tick_kimg_overrides,
                  lod_training_nimg=100*1000,
-                 lod_transition_nimg=100*1000):
+                 lod_transition_nimg=100*1000,
+                 max_lod=9,
+                 depth_offset=2):
         super(DepthManager, self).__init__([(1, 'iteration')])
         self.minibatch_default = minibatch_default
         self.minibatch_overrides = minibatch_overrides
@@ -49,11 +51,22 @@ class DepthManager(Plugin):
         self.trainer = None
         self.depth = -1
         self.alpha = -1
+        self.max_lod = max_lod
+        self.depth_offset = depth_offset
 
     def register(self, trainer):
         self.trainer = trainer
         self.trainer.stats['minibatch_size'] = self.minibatch_default
+        self.trainer.stats['alpha'] = {'log_name': 'alpha', 'log_epoch_fields': ['{val:.2f}'], 'val': self.alpha}
+        if self.max_lod is not None and self.depth_offset is not None:
+            self.trainer.stats['lod'] = {'log_name': 'lod', 'log_epoch_fields': ['{val:.2f}'], 'val': self.lod}
         self.iteration()
+
+    @property
+    def lod(self):
+        if self.max_lod is not None and self.depth_offset is not None:
+            return self.max_lod - self.depth_offset - self.depth - self.alpha + 1
+        return -1
 
     def iteration(self, *args):
         cur_nimg = self.trainer.cur_nimg
@@ -76,8 +89,9 @@ class DepthManager(Plugin):
             self.trainer.D.alpha = self.trainer.G.alpha = dataset.alpha = alpha
             self.alpha = alpha
         self.trainer.stats['depth'] = depth
-        self.trainer.stats['alpha'] = alpha
-        self.trainer.stats['lod'] = 9 - 2 - depth - alpha + 1
+        self.trainer.stats['alpha']['val'] = alpha
+        if self.max_lod is not None and self.depth_offset is not None:
+            self.trainer.stats['lod']['val'] = self.lod
 
 
 class LRScheduler(Plugin):
@@ -106,7 +120,8 @@ class EfficientLossMonitor(LossMonitor):
         self.stat_name = stat_name
 
     def _get_value(self, iteration, *args):
-        return args[self.loss_no] if self.loss_no < 2 else args[self.loss_no].mean()
+        val = args[self.loss_no] if self.loss_no < 2 else args[self.loss_no].mean()
+        return val.data[0]
 
 
 class AbsoluteTimeMonitor(Plugin):
@@ -120,11 +135,11 @@ class AbsoluteTimeMonitor(Plugin):
         self.epoch_start = self.start_time
         self.start_nimg = None
         self.epoch_time = 0
-        self.log_format = '{}'
 
     def register(self, trainer):
         self.trainer = trainer
         self.start_nimg = trainer.cur_nimg
+        self.trainer.stats['sec'] = {'log_format': ':.1f'}
 
     def epoch(self, epoch_index):
         cur_time = time.time()
@@ -133,8 +148,8 @@ class AbsoluteTimeMonitor(Plugin):
         kimg_time = tick_time / (self.trainer.cur_nimg - self.start_nimg) * 1000
         self.start_nimg = self.trainer.cur_nimg
         self.trainer.stats['time'] = timedelta(seconds=time.time() - self.start_time + self.base_time)
-        self.trainer.stats['sec/tick'] = tick_time
-        self.trainer.stats['sec/kimg'] = kimg_time
+        self.trainer.stats['sec']['tick'] = tick_time
+        self.trainer.stats['sec']['kimg'] = kimg_time
 
 
 class SaverPlugin(Plugin):
@@ -315,7 +330,7 @@ class TeeLogger(Logger):
 
     def log(self, msg):
         print(msg, flush=True)
-        self.log_file.write(msg)
+        self.log_file.write(msg + '\n')
 
     def epoch(self, epoch_idx):
-        self.iteration(epoch_idx)
+        self._log_all('log_epoch_fields')

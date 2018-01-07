@@ -47,7 +47,8 @@ class Trainer(object):
         self.cur_tick = 0
         self.time = 0
         self.stats = {
-            'kimg': self.cur_nimg / 1000.
+            'kimg_stat': { 'val': self.cur_nimg / 1000., 'log_epoch_fields': ['{val:8.3f}'], 'log_name': 'kimg' },
+            'tick_stat': { 'val': self.cur_tick, 'log_epoch_fields': ['{val:5}'], 'log_name': 'tick'}
         }
         self.plugin_queues = {
             'iteration': [],
@@ -89,7 +90,8 @@ class Trainer(object):
             if self.cur_nimg >= self.tick_start_nimg + self.tick_duration_nimg or self.cur_nimg >= total_kimg * 1000:
                 self.cur_tick += 1
                 self.tick_start_nimg = self.cur_nimg
-                self.stats['kimg'] = self.cur_nimg / 1000.
+                self.stats['kimg_stat']['val'] = self.cur_nimg / 1000.
+                self.stats['tick_stat']['val'] = self.cur_tick
                 self.call_plugins('epoch', self.cur_tick)
 
     def train(self):

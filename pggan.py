@@ -39,8 +39,8 @@ def train_gan(
     total_kimg              = 100,      # trainer
     drange_net              = (-1,1),   # dataset
     image_grid_size         = None,     # plugin to create images
-    tick_kimg_default       = 1,        # trainer
-    tick_kimg_overrides     = {32:5, 64:2, 128:1, 256:5, 512:2, 1024:1}, # trainer
+    tick_kimg_default       = 20,        # trainer
+    tick_kimg_overrides     = {3:10, 4:10, 5:5, 6:2, 7:2, 8:1}, # trainer
     image_snapshot_ticks    = 2,        # plugin based on ticks for img snapshot
     network_snapshot_ticks  = 40,       # plugin based on ticks for network snapshot
     resume_network_pkl      = None,     # trainer ?
@@ -110,20 +110,21 @@ def train_gan(
     trainer.register_plugin(SaverPlugin(config.result_dir, True, network_snapshot_ticks))
     trainer.register_plugin(SampleGenerator(config.result_dir, image_grid_size, drange_net,
                                             image_snapshot_ticks, resolution, lambda x: random_latents(x, latent_size)))
-    trainer.register_plugin(AbsoluteTimeMonitor())
+    trainer.register_plugin(AbsoluteTimeMonitor(resume_time))
     trainer.register_plugin(LRScheduler(lr_scheduler_d, lr_scheduler_g))
     trainer.register_plugin(TeeLogger(os.path.join(config.result_dir, 'log.txt'),
                                       [
+                                          'tick_stat',
+                                          'kimg_stat',
                                           'depth',
                                           'alpha',
                                           'lod',
-                                          'kimg',
                                           'minibatch_size',
                                           'time',
-                                          'sec/tick',
-                                          'sec/kimg'
-                                      ],
-                                      # + losses,
+                                          'sec.tick',
+                                          'sec.kimg'
+                                      ]
+                                      + losses,
                                       [(1, 'epoch')]))
     trainer.run(total_kimg)
     dataset.close()
