@@ -76,7 +76,6 @@ class DepthManager(Plugin):
         alpha = remaining_nimg / self.lod_transition_nimg if train_passes_rem > 0 else 1.0
         dataset = self.trainer.dataset
         if depth != self.depth:
-            self.trainer.stats['minibatch_size'] = self.minibatch_default
             self.trainer.D.depth = self.trainer.G.depth = dataset.depth = depth
             self.depth = depth
             minibatch_size = self.minibatch_overrides.get(depth, self.minibatch_default)
@@ -85,6 +84,7 @@ class DepthManager(Plugin):
             # print(self.trainer.random_latents_generator().size())
             tick_duration_kimg = self.tick_kimg_overrides.get(depth, self.tick_kimg_default)
             self.trainer.tick_duration_nimg = tick_duration_kimg * 1000
+            self.trainer.stats['minibatch_size'] = minibatch_size
         if alpha != self.alpha:
             self.trainer.D.alpha = self.trainer.G.alpha = dataset.alpha = alpha
             self.alpha = alpha
@@ -108,8 +108,8 @@ class LRScheduler(Plugin):
         self.iteration()
 
     def iteration(self, *args):
-        self.lrs_d.step(self.trainer.cur_nimg / 1000.)
-        self.lrs_g.step(self.trainer.cur_nimg / 1000.)
+        self.lrs_d.step(self.trainer.cur_nimg)
+        self.lrs_g.step(self.trainer.cur_nimg)
 
 
 class EfficientLossMonitor(LossMonitor):
@@ -220,14 +220,11 @@ class SampleGenerator(Plugin):
                ])
 
     def create_image_grid(self, images):
-        assert images.ndim == 3 or images.ndim == 4
         num, img_w, img_h = images.shape[0], images.shape[-1], images.shape[-2]
         grid_size = self.image_grid_size
-        if grid_size is not None:
-            grid_w, grid_h = tuple(grid_size)
-        else:
-            grid_w = max(int(np.ceil(np.sqrt(num))), 1)
-            grid_h = max((num - 1) // grid_w + 1, 1)
+
+        grid_w = max(int(np.ceil(np.sqrt(num))), 1)
+        grid_h = max((num - 1) // grid_w + 1, 1)
 
         grid = np.zeros(list(images.shape[1:-2]) + [grid_h * img_h, grid_w * img_w], dtype=images.dtype)
         for idx in range(num):

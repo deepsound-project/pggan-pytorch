@@ -90,9 +90,9 @@ def train_gan(
     opt_g = Adam(G.parameters(), G_lrate, (adam_beta1, adam_beta2), adam_epsilon)
     opt_d = Adam(D.parameters(), D_lrate, (adam_beta1, adam_beta2), adam_epsilon)
 
-    def rampup(epoch):
-        if epoch < rampup_kimg * 1000:
-            p = max(0.0, 1 - epoch / (rampup_kimg * 1000))
+    def rampup(cur_nimg):
+        if cur_nimg < rampup_kimg * 1000:
+            p = max(0.0, 1 - cur_nimg / (rampup_kimg * 1000))
             return np.exp(-p * p * 5.0)
         else:
             return 1.0
