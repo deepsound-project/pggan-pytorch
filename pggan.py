@@ -2,13 +2,13 @@ from torch.optim import Adam
 from torch.optim.lr_scheduler import LambdaLR
 import config
 from network import Generator, Discriminator
-from functools import reduce, partial
+from functools import reduce
 from trainer import Trainer
 from dataset import DepthDataset
 from torch.utils.data import DataLoader
 from torch.utils.data.sampler import RandomSampler
 from plugins import *
-from utils import random_latents
+from utils import random_latents, create_result_subdir
 torch.manual_seed(1337)
 
 
@@ -50,6 +50,7 @@ def train_gan(
 
     print('lod_training_kimg: {}'.format(lod_training_kimg))
     dataset = DepthDataset(os.path.join(config.data_dir, config.dataset), depth_offset=dataset_depth_offset, range_out=drange_net)
+    result_dir = create_result_subdir(config.result_dir, config.run_desc)
     resolution = dataset.shape[-1]
     num_channels = dataset.shape[1]
     if resume_network_pkl:
@@ -100,41 +101,38 @@ def train_gan(
     lr_scheduler_g = LambdaLR(opt_g, rampup)
 
     trainer = Trainer(D, G, opt_d, opt_g, dataset, iter(get_dataloader(minibatch_default)), rl(minibatch_default), D_training_repeats,
-                      tick_nimg_default=tick_kimg_default * 1000, resume_nimg=resume_kimg*1000, resume_time=resume_time)
+                      tick_nimg_default=tick_kimg_default * 1000, resume_nimg=resume_kimg*1000)
     # plugins
     trainer.register_plugin(DepthManager(get_dataloader, rl, minibatch_default, minibatch_overrides, tick_kimg_default,
                                          tick_kimg_overrides, lod_training_kimg*1000, lod_transition_kimg*1000))
     losses = ['G_loss', 'D_loss', 'D_real', 'D_fake']
     for i, loss_name in enumerate(losses):
         trainer.register_plugin(EfficientLossMonitor(i, loss_name))
-    trainer.register_plugin(SaverPlugin(config.result_dir, True, network_snapshot_ticks))
-    trainer.register_plugin(SampleGenerator(config.result_dir, image_grid_size, drange_net,
+    trainer.register_plugin(SaverPlugin(result_dir, True, network_snapshot_ticks))
+    trainer.register_plugin(SampleGenerator(result_dir, image_grid_size, drange_net,
                                             image_snapshot_ticks, resolution, lambda x: random_latents(x, latent_size)))
     trainer.register_plugin(AbsoluteTimeMonitor(resume_time))
     trainer.register_plugin(LRScheduler(lr_scheduler_d, lr_scheduler_g))
-    trainer.register_plugin(TeeLogger(os.path.join(config.result_dir, 'log.txt'),
-                                      [
-                                          'tick_stat',
-                                          'kimg_stat',
-                                          'depth',
-                                          'alpha',
-                                          'lod',
-                                          'minibatch_size',
-                                          'time',
-                                          'sec.tick',
-                                          'sec.kimg'
-                                      ]
-                                      + losses,
-                                      [(1, 'epoch')]))
+    trainer.register_plugin(TeeLogger(os.path.join(result_dir, 'log.txt'),
+          [
+              'tick_stat',
+              'kimg_stat',
+              'depth',
+              'alpha',
+              'lod',
+              'minibatch_size',
+              'time',
+              'sec.tick',
+              'sec.kimg'
+          ] + losses,
+          [(1, 'epoch')]))
     trainer.run(total_kimg)
     dataset.close()
     print('Done.')
-    with open(os.path.join(config.result_dir, '_training-done.txt'), 'wt'):
+    with open(os.path.join(result_dir, '_training-done.txt'), 'wt'):
         pass
 
 if __name__ == "__main__":
     np.random.seed(config.random_seed)
     func_params = config.train
-    func_name = func_params['func']
-    del func_params['func']
-    globals()[func_name](**func_params)
+    train_gan(**func_params)

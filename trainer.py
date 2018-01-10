@@ -21,17 +21,8 @@ class Trainer(object):
                  random_latents_generator,
                  D_training_repeats=1,  # trainer
                  G_smoothing=0.999,  # ???
-                 # minibatch_default=64,    # \
-                 # minibatch_overrides=None,  # /-> plugin to change DataLoader / Dataset in Trainer
-                 # rampup_nimg=40 * 1000,  # every batch - lr_scheduler.step() (plugin or directly)
-                 # lod_initial_resolution=4,  # trainer (init) + dataset
-                 # lod_training_nimg=4 * 1000,  # trainer + plugin to change dataloader (/ network?)
-                 # lod_transition_nimg=4 * 1000,  # trainer + plugin to change dataloader (/ network?)
-                 # total_nimg=100,  # trainer
                  tick_nimg_default=2 * 1000,  # trainer
-                 # tick_nimg_overrides=None,  # trainer
-                 resume_nimg=0,  # trainer
-                 resume_time=0):
+                 resume_nimg=0):
         self.D = D
         self.G = G
         self.D_training_repeats = D_training_repeats

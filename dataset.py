@@ -36,7 +36,7 @@ class DepthDataset(Dataset):
         if max_images is not None:
             self.shape = (min(self.shape[0], max_images),) + self.shape[1:]
         self.dtype = self.h5_data[0].dtype
-        self.h5_data = [x[:self.shape[0]] for x in self.h5_data]
+        self.h5_data = [x[:self.shape[0]] for x in self.h5_data] # load everything into memory (!)
 
     def __len__(self):
         return self.shape[0]

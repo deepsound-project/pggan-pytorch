@@ -1,28 +1,16 @@
-import matplotlib
-matplotlib.use('Agg')
+import os
+import time
+from datetime import timedelta
+from glob import glob
 
 import PIL.Image
-from network import Generator
-
+import numpy as np
 import torch
 from torch.autograd import Variable
 from torch.nn import functional as F
-from torch.utils.trainer.plugins.plugin import Plugin
-from torch.utils.trainer.plugins.monitor import Monitor
 from torch.utils.trainer.plugins import LossMonitor, Logger
-from torch.utils.data import DataLoader
-from datetime import timedelta
+from torch.utils.trainer.plugins.plugin import Plugin
 
-from librosa.output import write_wav
-from matplotlib import pyplot
-
-import numpy as np
-
-from glob import glob
-import sys
-import os
-import pickle
-import time
 import utils
 
 
