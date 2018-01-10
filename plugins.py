@@ -142,7 +142,7 @@ class AbsoluteTimeMonitor(Plugin):
 
 class SaverPlugin(Plugin):
 
-    last_pattern = 'network-snapshot-{}-{:06}.dat'
+    last_pattern = 'network-snapshot-{}-{}.dat'
 
     def __init__(self, checkpoints_path, keep_old_checkpoints, network_snapshot_ticks):
         super().__init__([(network_snapshot_ticks, 'epoch')])
@@ -161,7 +161,8 @@ class SaverPlugin(Plugin):
                 model,
                 os.path.join(
                     self.checkpoints_path,
-                    self.last_pattern.format(name, self.trainer.cur_nimg // 1000)
+                    self.last_pattern.format(name,
+                        '{:06}'.format(self.trainer.cur_nimg // 1000))
                 )
             )
 
