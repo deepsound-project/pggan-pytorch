@@ -80,12 +80,12 @@ class GBlock(nn.Module):
 
 class Generator(nn.Module):
     def __init__(self,
-        num_channels        = 1,        # Overridden based on dataset.
-        resolution          = 32,       # Overridden based on dataset.
+        num_channels,        # Overridden based on dataset.
+        resolution,       # Overridden based on dataset.
         fmap_base           = 4096,
         fmap_decay          = 1.0,
-        fmap_max            = 256,
-        latent_size         = None,
+        fmap_max            = 512,
+        latent_size         = 512,
         normalize_latents   = True,
         use_wscale          = True,
         use_pixelnorm       = True,
@@ -200,11 +200,11 @@ class MinibatchStddev(nn.Module):
 
 class Discriminator(nn.Module):
     def __init__(self,
-        num_channels        = 1,        # Overridden based on dataset.
-        resolution          = 32,       # Overridden based on dataset.
+        num_channels,        # Overridden based on dataset.
+        resolution,       # Overridden based on dataset.
         fmap_base           = 4096,
         fmap_decay          = 1.0,
-        fmap_max            = 256,
+        fmap_max            = 512,
         use_wscale          = True,
         use_pixelnorm       = True,
         use_leakyrelu       = True):
@@ -254,7 +254,7 @@ class Discriminator(nn.Module):
             # print(h.size())
             if i > 1:
                 h = F.avg_pool2d(h, 2)
-        # if self.depth > 0: print('linear', self.linear, h.size())
+        # if self.depth >= 0: print('linear', self.depth, self.linear, h.size())
         h = self.linear(h.squeeze(-1).squeeze(-1))
         # if self.depth > 0: print('go!')
         return h

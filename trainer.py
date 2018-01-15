@@ -1,10 +1,3 @@
-import torch
-from torch.autograd import Variable
-import numpy as np
-from wgan_gp_loss import *
-import config
-from utils import random_latents
-
 import heapq
 
 
@@ -14,17 +7,20 @@ class Trainer(object):
     def __init__(self,
                  D,
                  G,
+                 D_loss,
+                 G_loss,
                  optimizer_d,
                  optimizer_g,
                  dataset,
                  dataiter,
                  random_latents_generator,
                  D_training_repeats=1,  # trainer
-                 G_smoothing=0.999,  # ???
                  tick_nimg_default=2 * 1000,  # trainer
                  resume_nimg=0):
         self.D = D
         self.G = G
+        self.D_loss = D_loss
+        self.G_loss = G_loss
         self.D_training_repeats = D_training_repeats
         self.optimizer_d = optimizer_d
         self.optimizer_g = optimizer_g
@@ -88,22 +84,27 @@ class Trainer(object):
     def train(self):
         real_images_expr = next(self.dataiter).cuda()
         fake_latents_in = self.random_latents_generator().cuda()
-        # print(real_images_expr, fake_latents_in)
 
         # Calculate loss and optimize
-        D_loss = D_real = D_fake = 0.
+        d_losses = [0, 0, 0]
         for i in range(self.D_training_repeats):
-            D_loss, D_real, D_fake = wgan_gp_D_loss(self.D, self.G, real_images_expr, fake_latents_in,
-                                                    return_all=True, **config.loss)
+            d_losses = self.D_loss(self.D, self.G, real_images_expr, fake_latents_in)
+            d_losses = tuple(d_losses)
+            D_loss = d_losses[0]
             D_loss.backward()
             self.optimizer_d.step()
 
-        G_loss = wgan_gp_G_loss(self.G, self.D, fake_latents_in)
+        g_losses = self.G_loss(self.G, self.D, fake_latents_in)
+        if type(g_losses) is list:
+            g_losses = tuple(g_losses)
+        elif type(g_losses) is not tuple:
+            g_losses = (g_losses,)
+        G_loss = g_losses[0]
         G_loss.backward()
         self.optimizer_g.step()
 
         # tick_train_out.append((G_loss, D_loss, D_real, D_fake))
         self.cur_nimg += real_images_expr.size(0)
         self.iterations += 1
-        self.call_plugins('iteration', self.iterations, G_loss, D_loss, D_real, D_fake)
+        self.call_plugins('iteration', self.iterations, *(g_losses + d_losses))
 

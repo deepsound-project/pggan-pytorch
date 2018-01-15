@@ -1,6 +1,7 @@
 import torch
 import numpy as np
 import os
+import inspect
 
 
 def adjust_dynamic_range(data, range_in, range_out):
@@ -29,3 +30,52 @@ def create_result_subdir(results_dir, experiment_name, dir_pattern='{new_num:03}
     )
     return path
 
+
+def generic_arg_parse(x, hinttype=None):
+    if hinttype is int or hinttype is float or hinttype is str:
+        return hinttype(x)
+    try:
+        for _ in range(2):
+            x = x.strip('\'').strip("\"")
+        __special_tmp = eval(x, {}, {})
+    except Exception as e:
+        raise e
+    return __special_tmp
+
+
+def create_params(classes, excludes=None, overrides=None):
+    params = {}
+    if not excludes:
+        excludes = {}
+    if not overrides:
+        overrides = {}
+    for cls in classes:
+        nm = cls.__name__
+        params[nm] = {
+            k: (v.default if nm not in overrides or k not in overrides[nm] else overrides[nm][k])
+            for k, v in dict(inspect.signature(cls.__init__).parameters).items()
+            if v.default != inspect._empty and
+            (nm not in excludes or k not in excludes[nm])
+        }
+    return params
+
+
+def get_structured_params(params):
+    new_params = {}
+    for p in params:
+        if '.' in p:
+            [cls, attr] = p.split('.', 1)
+            if cls not in new_params:
+                new_params[cls] = {}
+            new_params[cls][attr] = params[p]
+        else:
+            new_params[p] = params[p]
+    return new_params
+
+
+def params_to_str(params):
+    s = '{\n'
+    for k, v in params.items():
+        s += '\t\'{}\': {},\n'.format(k, repr(v))
+    s += '}'
+    return s

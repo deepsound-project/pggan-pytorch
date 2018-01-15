@@ -19,14 +19,14 @@ class DepthManager(Plugin):
     def __init__(self,
                  create_dataloader_fun,
                  create_rlg,
-                 minibatch_default,
-                 minibatch_overrides,
-                 tick_kimg_default,
-                 tick_kimg_overrides,
+                 minibatch_default=16,
+                 minibatch_overrides={6:14, 7:6,  8:3},
+                 tick_kimg_default=20,
+                 tick_kimg_overrides={3:10, 4:10, 5:5, 6:2, 7:2, 8:1},
                  lod_training_nimg=100*1000,
                  lod_transition_nimg=100*1000,
-                 max_lod=9,
-                 depth_offset=2):
+                 max_lod=None,  # calculate and put values if you want to compare to original impl lod
+                 depth_offset=None):
         super(DepthManager, self).__init__([(1, 'iteration')])
         self.minibatch_default = minibatch_default
         self.minibatch_overrides = minibatch_overrides
@@ -174,9 +174,13 @@ class SaverPlugin(Plugin):
 
 class SampleGenerator(Plugin):
 
-    def __init__(self, samples_path, image_grid_size, drange, image_snapshot_ticks, resolution, sample_fn):
+    def __init__(self, samples_path, sample_fn, image_grid_size=(3,2), drange=(-1,1), image_snapshot_ticks=3, resolution=512):
         super(SampleGenerator, self).__init__([(image_snapshot_ticks, 'epoch')])
         self.samples_path = samples_path
+        # Setup snapshot image grid.
+        if image_grid_size is None:
+            w, h = (resolution,) * 2
+            image_grid_size = np.clip(1920 // w, 3, 16), np.clip(1080 // h, 2, 16)
         self.image_grid_size = image_grid_size
         self.resolution = resolution
         self.sample_fn = sample_fn
@@ -224,7 +228,6 @@ class SampleGenerator(Plugin):
 
     def convert_to_pil_image(self, image):
         format = 'RGB'
-        print(image.shape)
         if image.ndim == 3:
             if image.shape[0] == 1:
                 image = image[0]  # grayscale CHW => HW
@@ -235,9 +238,6 @@ class SampleGenerator(Plugin):
 
         image = utils.adjust_dynamic_range(image, self.drange, (0, 255))
         image = image.round().clip(0, 255).astype(np.uint8)
-        print(image.shape)
-        print(image)
-        print(format)
         return PIL.Image.fromarray(image, format)
 
     def epoch(self, epoch_index):
@@ -294,17 +294,18 @@ class CometPlugin(Plugin):
         super().__init__([(1, 'epoch')])
 
         self.experiment = experiment
-        self.fields = [
-            field if type(field) is tuple else (field, 'last')
-            for field in fields
-        ]
+        self.fields = fields
 
     def register(self, trainer):
         self.trainer = trainer
 
     def epoch(self, epoch_index):
-        for (field, stat) in self.fields:
-            self.experiment.log_metric(field, self.trainer.stats[field][stat])
+        for field in self.fields:
+            steps = field.split('.')
+            stat = self.trainer.stats[steps[0]]
+            for i in range(1,len(steps)):
+                stat = stat[steps[i]]
+            self.experiment.log_metric(field, stat)
         self.experiment.log_epoch_end(epoch_index)
 
 

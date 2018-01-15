@@ -3,19 +3,20 @@ import numpy as np
 import torch
 import h5py
 from utils import adjust_dynamic_range
+import matplotlib.pyplot as plt
 
 
 class DepthDataset(Dataset):
 
     def __init__(self,
         h5_path,                                # e.g. 'cifar10-32.h5'
-        depth_offset                = 0,
+        depth_offset                = 2,        # we start with 4x4 resolution instead of 1x1
         resolution                  = None,     # e.g. 32 (autodetect if None)
         max_images                  = None,
         depth                       = 0,
         alpha                       = 1.0,
         range_in                    = (0, 255),
-        range_out                   = (0, 1)):
+        range_out                   = (-1, 1)):
 
         self.depth = depth
         self.alpha = alpha
@@ -47,7 +48,9 @@ class DepthDataset(Dataset):
             c, h, w = data.shape
             t = data.reshape(c, h // 2, 2, w // 2, 2).mean((2, 4)).repeat(2, 1).repeat(2, 2)
             data = (data + (t - data) * self.alpha)
+        # print(data[0])
         data = adjust_dynamic_range(data, self.range_in, self.range_out)
+        # print(data[0])
         return torch.from_numpy(data.astype('float32'))
 
     def close(self):
