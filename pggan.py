@@ -86,15 +86,15 @@ def main(params):      # plugin
 
     losses = ['G_loss', 'D_loss', 'D_real', 'D_fake']
     stats_to_log = [
-                  'tick_stat',
-                  'kimg_stat',
+        'tick_stat',
+        'kimg_stat',
     ]
     if params['progressive_growing']:
         stats_to_log.extend([
-                  'depth',
-                  'alpha',
-                  'lod',
-                  'minibatch_size'
+            'depth',
+            'alpha',
+            'lod',
+            'minibatch_size'
         ])
     stats_to_log.extend([
         'time',
@@ -108,7 +108,8 @@ def main(params):      # plugin
     else:
         G = Generator(num_channels, resolution, **params['Generator'])
         D = Discriminator(num_channels, resolution, **params['Discriminator'])
-
+    if params['progressive_growing']:
+        assert G.max_depth == D.max_depth
     G.cuda()
     D.cuda()
     latent_size = params['Generator']['latent_size']
@@ -150,7 +151,8 @@ def main(params):      # plugin
                       opt_d, opt_g, dataset, iter(get_dataloader(mb_def)), rl(mb_def), **params['Trainer'])
     # plugins
     if params['progressive_growing']:
-        trainer.register_plugin(DepthManager(get_dataloader, rl, **params['DepthManager']))
+        max_depth = min(G.max_depth, D.max_depth)
+        trainer.register_plugin(DepthManager(get_dataloader, rl, max_depth, **params['DepthManager']))
     for i, loss_name in enumerate(losses):
         trainer.register_plugin(EfficientLossMonitor(i, loss_name))
     trainer.register_plugin(SaverPlugin(result_dir, True, params['network_snapshot_ticks']))

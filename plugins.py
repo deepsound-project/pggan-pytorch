@@ -19,6 +19,7 @@ class DepthManager(Plugin):
     def __init__(self,
                  create_dataloader_fun,
                  create_rlg,
+                 max_depth,
                  minibatch_default=16,
                  minibatch_overrides={6:14, 7:6,  8:3},
                  tick_kimg_default=20,
@@ -39,6 +40,7 @@ class DepthManager(Plugin):
         self.trainer = None
         self.depth = -1
         self.alpha = -1
+        self.max_depth = max_depth
         self.max_lod = max_lod
         self.depth_offset = depth_offset
 
@@ -60,7 +62,7 @@ class DepthManager(Plugin):
         cur_nimg = self.trainer.cur_nimg
         full_passes, remaining_nimg = divmod(cur_nimg, self.lod_training_nimg + self.lod_transition_nimg)
         train_passes_rem, remaining_nimg = divmod(remaining_nimg, self.lod_training_nimg)
-        depth = full_passes + train_passes_rem
+        depth = min(self.max_depth, full_passes + train_passes_rem)
         alpha = remaining_nimg / self.lod_transition_nimg if train_passes_rem > 0 else 1.0
         dataset = self.trainer.dataset
         if depth != self.depth:

@@ -118,6 +118,7 @@ class Generator(nn.Module):
         self.depth = 0
         self.alpha = 1.0
         self.eps = 1e-8
+        self.max_depth = len(self.blocks)
 
     def forward(self, x):
         h = x.unsqueeze(2).unsqueeze(3)
@@ -231,6 +232,7 @@ class Discriminator(nn.Module):
         self.depth = 0
         self.alpha = 1.0
         self.eps = 1e-8
+        self.max_depth = len(self.blocks) - 1
 
     def forward(self, x):
         blockno = self.R - self.depth - 2
