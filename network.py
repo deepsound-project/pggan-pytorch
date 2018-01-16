@@ -80,8 +80,7 @@ class GBlock(nn.Module):
 
 class Generator(nn.Module):
     def __init__(self,
-        num_channels,        # Overridden based on dataset.
-        resolution,       # Overridden based on dataset.
+        dataset_shape, # Overriden based on the dataset
         fmap_base           = 4096,
         fmap_decay          = 1.0,
         fmap_max            = 512,
@@ -92,6 +91,9 @@ class Generator(nn.Module):
         use_leakyrelu       = True):
         super(Generator, self).__init__()
 
+        resolution = dataset_shape[-1]
+        num_channels = dataset_shape[1]
+        print(dataset_shape)
         R = int(np.log2(resolution))
         assert resolution == 2 ** R and resolution >= 4
 
@@ -201,8 +203,7 @@ class MinibatchStddev(nn.Module):
 
 class Discriminator(nn.Module):
     def __init__(self,
-        num_channels,        # Overridden based on dataset.
-        resolution,       # Overridden based on dataset.
+        dataset_shape, # Overriden based on dataset
         fmap_base           = 4096,
         fmap_decay          = 1.0,
         fmap_max            = 512,
@@ -211,6 +212,8 @@ class Discriminator(nn.Module):
         use_leakyrelu       = True):
         super(Discriminator, self).__init__()
 
+        resolution = dataset_shape[-1]
+        num_channels = dataset_shape[1]
         R = int(np.log2(resolution))
         assert resolution == 2 ** R and resolution >= 4
         self.R = R

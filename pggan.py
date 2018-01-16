@@ -4,7 +4,8 @@ from network import Generator, Discriminator
 from wgan_gp_loss import wgan_gp_G_loss, wgan_gp_D_loss
 from functools import reduce, partial
 from trainer import Trainer
-from dataset import DepthDataset
+import dataset
+from dataset import *
 from torch.utils.data import DataLoader
 from torch.utils.data.sampler import RandomSampler
 from plugins import *
@@ -14,8 +15,6 @@ from collections import OrderedDict
 torch.manual_seed(1337)
 
 default_params = OrderedDict(
-    data_dir='datasets',
-    dataset='specs512.h5',
     result_dir='results',
     exp_name='specs512',
     minibatch_size=16,
@@ -36,6 +35,9 @@ default_params = OrderedDict(
     iwass_lambda=10.0,
     iwass_epsilon=0.001,
     iwass_target=1.0,
+    save_dataset='',
+    load_dataset='',
+    dataset_class='',
 )
 
 
@@ -74,15 +76,20 @@ def init_comet(params, trainer):
                 'kimg_stat'
             ] + (['depth', 'alpha'] if params['progressive_growing'] else [])
         ))
+    else:
+        print('Comet_ml logging disabled.')
 
 
-def main(params):      # plugin
-
-    dataset = DepthDataset(os.path.join(params['data_dir'], params['dataset']),
-                           **params['DepthDataset'])
+def main(params):
+    if params['load_dataset']:
+        dataset = load_pkl(params['load_dataset'])
+    elif params['dataset_class']:
+        dataset = globals()[params['dataset_class']](**params[params['dataset_class']])
+        if params['save_dataset']:
+            save_pkl(params['save_dataset'], dataset)
+    else:
+        raise Exception('One of either load_dataset (path to pkl) or dataset_class needs to be specified.')
     result_dir = create_result_subdir(params['result_dir'], params['exp_name'])
-    resolution = dataset.shape[-1]
-    num_channels = dataset.shape[1]
 
     losses = ['G_loss', 'D_loss', 'D_real', 'D_fake']
     stats_to_log = [
@@ -106,8 +113,8 @@ def main(params):      # plugin
     if params['resume_network']:
         G, D = load_models(params['resume_network'], params['result_dir'], logger)
     else:
-        G = Generator(num_channels, resolution, **params['Generator'])
-        D = Discriminator(num_channels, resolution, **params['Discriminator'])
+        G = Generator(dataset.shape, **params['Generator'])
+        D = Discriminator(dataset.shape, **params['Discriminator'])
     if params['progressive_growing']:
         assert G.max_depth == D.max_depth
     G.cuda()
@@ -167,7 +174,8 @@ def main(params):      # plugin
 
 if __name__ == "__main__":
     parser = ArgumentParser()
-    needarg_classes = [Trainer, Generator, Discriminator, DepthDataset, DepthManager, SaverPlugin, SampleGenerator, Adam]
+    needarg_classes = [Trainer, Generator, Discriminator, DepthManager, SaverPlugin, SampleGenerator, Adam]
+    needarg_classes += get_all_classes(dataset)
     excludes = {'Adam': {'lr'}}
     default_overrides = {'Adam': {'betas': (0.0, 0.99)}}
     auto_args = create_params(needarg_classes, excludes, default_overrides)

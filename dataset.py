@@ -13,7 +13,7 @@ from functools import reduce
 
 class DepthDataset(Dataset):
 
-    def __init__(self,  # e.g. 'cifar10-32.h5'
+    def __init__(self,
          model_dataset_depth_offset=2,  # we start with 4x4 resolution instead of 1x1
          model_initial_depth=0,
          alpha=1.0,
@@ -29,6 +29,10 @@ class DepthDataset(Dataset):
     @property
     def data(self):
         raise NotImplementedError()
+
+    @property
+    def shape(self):
+        return self.data[-1].shape
 
     def alpha_fade(self, data):
         raise NotImplementedError()
@@ -49,7 +53,7 @@ class DepthDataset(Dataset):
 class OldH5Dataset(DepthDataset):
 
     def __init__(self,
-         h5_path,  # e.g. 'cifar10-32.h5'
+         h5_path='datasets/cifar10-32.h5',
          model_dataset_depth_offset  = 2,  # we start with 4x4 resolution instead of 1x1
          resolution                  = None,  # e.g. 32 (autodetect if None)
          max_images                  = None,
@@ -67,17 +71,19 @@ class OldH5Dataset(DepthDataset):
         self.resolutions = sorted(list({v.shape[-1] for v in self.h5_file.values()}))
         self.resolution = self.resolutions[-1]
         self.h5_data = [self.h5_file['data{}x{}'.format(r, r)] for r in self.resolutions]
-
-        # Look up shapes and dtypes.
-        self.shape = self.h5_data[-1].shape
+        self.h5_shape = self.h5_data[-1].shape
         if max_images is not None:
-            self.shape = (min(self.shape[0], max_images),) + self.shape[1:]
+            self.h5_shape = (min(self.shape[0], max_images),) + self.shape[1:]
         self.dtype = self.h5_data[0].dtype
         self.h5_data = [x[:self.shape[0]] for x in self.h5_data] # load everything into memory (!)
 
     @property
     def data(self):
         return self.h5_data
+
+    @property
+    def shape(self):
+        return self.h5_shape
 
     def __len__(self):
         return self.shape[0]
@@ -86,6 +92,7 @@ class OldH5Dataset(DepthDataset):
         c, h, w = datapoint.shape
         t = datapoint.reshape(c, h // 2, 2, w // 2, 2).mean((2, 4)).repeat(2, 1).repeat(2, 2)
         datapoint = (datapoint + (t - datapoint) * self.alpha)
+        return datapoint
 
     def close(self):
         self.h5_file.close()
@@ -114,7 +121,8 @@ class FolderDataset(DepthDataset):
         self.min_dataset_depth = 0 if preload and create_unused_depths else self.model_dataset_depth_offset
         self.datas = [None] * (self.max_dataset_depth + 1)
         if self.preload:
-            print('Preloading data...')
+            print('Preloading data...', self.max_dataset_depth)
+
             def get_datapoint(i, cur_depth):
                 if cur_depth == self.max_dataset_depth:
                     return self.load_file(i)
@@ -129,7 +137,6 @@ class FolderDataset(DepthDataset):
                     if not data_shape:
                         data_shape = datapoint.shape
                         shape = (len(self.files),) + data_shape
-                        print(shape)
                         tmp_data = np.zeros(shape, dtype=datapoint.dtype)
                     else:
                         assert datapoint.shape == data_shape
@@ -146,6 +153,12 @@ class FolderDataset(DepthDataset):
         if self.preload:
             return self.datas
         raise AttributeError('FolderDataset.data property only accessible if preload is on.')
+
+    @property
+    def shape(self):
+        if self.preload:
+            return super(FolderDataset, self).shape
+        return (len(self),) + self.load_file(0).shape
 
     def __len__(self):
         return len(self.files)
@@ -178,7 +191,7 @@ class FolderDataset(DepthDataset):
 class DefaultImageFolderDataset(FolderDataset):
 
     def __init__(self,
-                 dir_path,  # e.g. 'samples/'
+                 dir_path='datasets/images',  # e.g. 'samples/'
                  max_dataset_depth=None,
                  create_unused_depths=False,
                  preload=False,
@@ -199,8 +212,16 @@ class DefaultImageFolderDataset(FolderDataset):
         im = imread(self.files[item], mode=self.imread_mode)
         if im.ndim == 2:
             im = im[np.newaxis]
-        assert im.ndim == 4
+        if im.ndim == 3:
+            im = im.transpose(2, 0, 1)
+        assert im.ndim == 3
         return im
+
+    def alpha_fade(self, datapoint):
+        c, h, w = datapoint.shape
+        t = datapoint.reshape(c, h // 2, 2, w // 2, 2).mean((2, 4)).repeat(2, 1).repeat(2, 2)
+        datapoint = (datapoint + (t - datapoint) * self.alpha)
+        return datapoint
 
     def create_datapoint_from_depth(self, datapoint, datapoint_depth, target_depth):
         datapoint = datapoint.astype(np.float32)
@@ -212,13 +233,14 @@ class DefaultImageFolderDataset(FolderDataset):
         return np.uint8(np.clip(np.round(datapoint), self.range_in[0], self.range_in[1]))
 
     def infer_max_dataset_depth(self, datapoint):
+        print(datapoint.shape)
         return int(math.log(datapoint.shape[-1], self.scale_factor))
 
 
-class SoundSpectrogramsDataset(DefaultImageFolderDataset):
+class SoundImageDataset(DefaultImageFolderDataset):
 
     def __init__(self,
-                 dir_path,  # e.g. 'samples/'
+                 dir_path='datasets/piano',  # e.g. 'samples/'
                  max_dataset_depth=None,
                  create_unused_depths=False,
                  preload=False,
@@ -228,17 +250,17 @@ class SoundSpectrogramsDataset(DefaultImageFolderDataset):
                  range_in=(0, 255),
                  range_out=(-1, 1),
                  scale_factor=2,
-                 n_fft=1024,
-                 hop_length=128,
-                 frequency=16000,
-                 spec_mode='abslog'
+                 n_fft=1024,       # these matter only for spectrogram img_mode
+                 hop_length=128,   #
+                 frequency=16000,  #
+                 img_mode='abslog'
                  ):
         assert n_fft == 2 ** int(np.log2(n_fft))
         self.n_fft = n_fft
         self.hop_length = hop_length
         self.frequency = frequency
-        self.spec_mode = spec_mode
-        super(SoundSpectrogramsDataset, self).__init__(dir_path, max_dataset_depth, create_unused_depths, preload,
+        self.img_mode = img_mode
+        super(SoundImageDataset, self).__init__(dir_path, max_dataset_depth, create_unused_depths, preload,
                                                 model_dataset_depth_offset, model_initial_depth, alpha, range_in,
                                                 range_out, scale_factor=scale_factor)
 
@@ -246,12 +268,20 @@ class SoundSpectrogramsDataset(DefaultImageFolderDataset):
         s, _ = sf.read(self.files[item], dtype='float32')
         if s.ndim == 2:  # stereo to mono
             s = (s.sum(axis=1)) / 2
+        if self.img_mode == 'raw':
+            size = int(np.log2(np.sqrt(s.shape[0])))
+            return s[:(2 ** size)**2].reshape((2 ** size, 2 ** size))[np.newaxis]
         s = lbr.stft(s, self.n_fft, self.hop_length)
         s = s[:self.n_fft // 2, :self.n_fft // 2]
-        if self.spec_mode == 'abslog':
+        if self.img_mode == 'abslog':
             s = np.log(1 + np.abs(s))
-        elif self.spec_mode == 'real':
+        elif self.img_mode == 'real':
             s = np.log(1 + np.abs(s.real)) * np.sign(s)
         s = np.uint8(adjust_dynamic_range(s, (s.min(), s.max()), self.range_in))
         return s[np.newaxis]
 
+    def create_datapoint_from_depth(self, datapoint, datapoint_depth, target_depth):
+        if self.img_mode != 'raw':
+            return super(SoundImageDataset, self).create_datapoint_from_depth(datapoint, datapoint_depth, target_depth)
+        depthdiff = (datapoint_depth - target_depth)
+        return datapoint[:, ::2**depthdiff, ::2**depthdiff]

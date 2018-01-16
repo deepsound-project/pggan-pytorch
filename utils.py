@@ -2,6 +2,17 @@ import torch
 import numpy as np
 import os
 import inspect
+from pickle import load, dump
+
+
+def save_pkl(fname, obj):
+    with open(fname, 'wb') as f:
+        dump(obj, f)
+
+
+def load_pkl(fname):
+    with open(fname, 'rb') as f:
+        return load(f)
 
 
 def adjust_dynamic_range(data, range_in, range_out):
@@ -31,6 +42,11 @@ def create_result_subdir(results_dir, experiment_name, dir_pattern='{new_num:03}
     return path
 
 
+def get_all_classes(module):
+    return [getattr(module, name) for name in dir(module)
+            if inspect.isclass(getattr(module, name, 0))]
+
+
 def generic_arg_parse(x, hinttype=None):
     if hinttype is int or hinttype is float or hinttype is str:
         return hinttype(x)
@@ -38,8 +54,9 @@ def generic_arg_parse(x, hinttype=None):
         for _ in range(2):
             x = x.strip('\'').strip("\"")
         __special_tmp = eval(x, {}, {})
-    except Exception as e:
-        raise e
+    except:  # the string contained some name - probably path, treat as string
+        __special_tmp = x  # treat as string
+        print('Treating value: {} as str.'.format(x))
     return __special_tmp
 
 
