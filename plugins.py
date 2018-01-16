@@ -66,7 +66,7 @@ class DepthManager(Plugin):
         alpha = remaining_nimg / self.lod_transition_nimg if train_passes_rem > 0 else 1.0
         dataset = self.trainer.dataset
         if depth != self.depth:
-            self.trainer.D.depth = self.trainer.G.depth = dataset.depth = depth
+            self.trainer.D.depth = self.trainer.G.depth = dataset.model_depth = depth
             self.depth = depth
             minibatch_size = self.minibatch_overrides.get(depth, self.minibatch_default)
             self.trainer.dataiter = iter(self.create_dataloader_fun(minibatch_size))

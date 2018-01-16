@@ -2,25 +2,63 @@ from torch.utils.data import Dataset
 import numpy as np
 import torch
 import h5py
+import os
+import soundfile as sf
+import librosa as lbr
+import math
 from utils import adjust_dynamic_range
-import matplotlib.pyplot as plt
+from scipy.misc import imread
+from functools import reduce
 
 
 class DepthDataset(Dataset):
 
-    def __init__(self,
-        h5_path,                                # e.g. 'cifar10-32.h5'
-        depth_offset                = 2,        # we start with 4x4 resolution instead of 1x1
-        resolution                  = None,     # e.g. 32 (autodetect if None)
-        max_images                  = None,
-        depth                       = 0,
-        alpha                       = 1.0,
-        range_in                    = (0, 255),
-        range_out                   = (-1, 1)):
+    def __init__(self,  # e.g. 'cifar10-32.h5'
+         model_dataset_depth_offset=2,  # we start with 4x4 resolution instead of 1x1
+         model_initial_depth=0,
+         alpha=1.0,
+         range_in=(0, 255),
+         range_out=(-1, 1)):
 
-        self.depth = depth
+        self.model_depth = model_initial_depth
         self.alpha = alpha
         self.range_out = range_out
+        self.model_dataset_depth_offset = model_dataset_depth_offset
+        self.range_in = range_in
+
+    @property
+    def data(self):
+        raise NotImplementedError()
+
+    def alpha_fade(self, data):
+        raise NotImplementedError()
+
+    def __len__(self):
+        raise NotImplementedError()
+
+    def __getitem__(self, item):
+        datapoint = self.data[self.model_depth + self.model_dataset_depth_offset][item]
+        if self.alpha < 1.0:
+            datapoint = self.alpha_fade(datapoint)
+        # print(data[0])
+        datapoint = adjust_dynamic_range(datapoint, self.range_in, self.range_out)
+        # print(data[0])
+        return torch.from_numpy(datapoint.astype('float32'))
+
+
+class OldH5Dataset(DepthDataset):
+
+    def __init__(self,
+         h5_path,  # e.g. 'cifar10-32.h5'
+         model_dataset_depth_offset  = 2,  # we start with 4x4 resolution instead of 1x1
+         resolution                  = None,  # e.g. 32 (autodetect if None)
+         max_images                  = None,
+         model_initial_depth         = 0,
+         alpha                       = 1.0,
+         range_in                    = (0, 255),
+         range_out                   = (-1, 1)):
+
+        super(OldH5Dataset, self).__init__(model_dataset_depth_offset, model_initial_depth, alpha, range_in, range_out)
 
         # Open HDF5 file and select resolution.
         self.h5_path = h5_path
@@ -28,8 +66,6 @@ class DepthDataset(Dataset):
         self.resolution = resolution
         self.resolutions = sorted(list({v.shape[-1] for v in self.h5_file.values()}))
         self.resolution = self.resolutions[-1]
-        self.depth_offset = depth_offset
-        self.range_in = range_in
         self.h5_data = [self.h5_file['data{}x{}'.format(r, r)] for r in self.resolutions]
 
         # Look up shapes and dtypes.
@@ -39,19 +75,183 @@ class DepthDataset(Dataset):
         self.dtype = self.h5_data[0].dtype
         self.h5_data = [x[:self.shape[0]] for x in self.h5_data] # load everything into memory (!)
 
+    @property
+    def data(self):
+        return self.h5_data
+
     def __len__(self):
         return self.shape[0]
 
-    def __getitem__(self, item):
-        data = self.h5_data[self.depth + self.depth_offset][item]
-        if self.alpha < 1.0:
-            c, h, w = data.shape
-            t = data.reshape(c, h // 2, 2, w // 2, 2).mean((2, 4)).repeat(2, 1).repeat(2, 2)
-            data = (data + (t - data) * self.alpha)
-        # print(data[0])
-        data = adjust_dynamic_range(data, self.range_in, self.range_out)
-        # print(data[0])
-        return torch.from_numpy(data.astype('float32'))
+    def alpha_fade(self, datapoint):
+        c, h, w = datapoint.shape
+        t = datapoint.reshape(c, h // 2, 2, w // 2, 2).mean((2, 4)).repeat(2, 1).repeat(2, 2)
+        datapoint = (datapoint + (t - datapoint) * self.alpha)
 
     def close(self):
         self.h5_file.close()
+
+
+class FolderDataset(DepthDataset):
+
+    def __init__(self,
+         dir_path,  # e.g. 'samples/'
+         max_dataset_depth           = None,
+         create_unused_depths        = False,
+         preload                     = False,
+         model_dataset_depth_offset  = 2,  # we start with 4x4 resolution instead of 1x1
+         model_initial_depth         = 0,
+         alpha                       = 1.0,
+         range_in                    = (0, 255),
+         range_out                   = (-1, 1)):
+
+        super(FolderDataset, self).__init__(model_dataset_depth_offset, model_initial_depth, alpha, range_in, range_out)
+        self.dir_path = dir_path
+        self.files = sorted(list(map(lambda x: os.path.join(dir_path, x), os.listdir(dir_path))))
+        self.max_dataset_depth = max_dataset_depth
+        if self.max_dataset_depth is None:
+            self.max_dataset_depth = self.infer_max_dataset_depth(self.load_file(0))
+        self.preload = preload
+        self.min_dataset_depth = 0 if preload and create_unused_depths else self.model_dataset_depth_offset
+        self.datas = [None] * (self.max_dataset_depth + 1)
+        if self.preload:
+            print('Preloading data...')
+            def get_datapoint(i, cur_depth):
+                if cur_depth == self.max_dataset_depth:
+                    return self.load_file(i)
+                return self.get_datapoint_version(self.datas[cur_depth + 1][i], cur_depth + 1, cur_depth)
+            for cur_depth in range(self.max_dataset_depth, self.min_dataset_depth - 1, -1):
+                print('Preloading depth: {}'.format(cur_depth))
+                tmp_data = None
+                data_shape = None
+                for i in range(len(self.files)):
+                    print('Preloading item: {}/{} in depth: {}'.format(i, len(self.files), cur_depth))
+                    datapoint = get_datapoint(i, cur_depth)
+                    if not data_shape:
+                        data_shape = datapoint.shape
+                        shape = (len(self.files),) + data_shape
+                        print(shape)
+                        tmp_data = np.zeros(shape, dtype=datapoint.dtype)
+                    else:
+                        assert datapoint.shape == data_shape
+                    tmp_data[i] = datapoint
+                self.datas[cur_depth] = tmp_data
+        self.description = {
+            'len': len(self),
+            'shape': self.datas[-1].shape if self.preload else 'unknown',
+            'depth_range': ((self.min_dataset_depth if self.preload else 'unknown'), self.max_dataset_depth)
+        }
+
+    @property
+    def data(self):
+        if self.preload:
+            return self.datas
+        raise AttributeError('FolderDataset.data property only accessible if preload is on.')
+
+    def __len__(self):
+        return len(self.files)
+
+    def get_datapoint_version(self, datapoint, datapoint_depth, target_depth):
+        if datapoint_depth == target_depth:
+            return datapoint
+        return self.create_datapoint_from_depth(datapoint, datapoint_depth, target_depth)
+
+    def create_datapoint_from_depth(self, datapoint, datapoint_depth, target_depth):
+        raise NotImplementedError()
+
+    def load_file(self, item):
+        raise NotImplementedError()
+
+    def infer_max_dataset_depth(self, datapoint):
+        raise NotImplementedError()
+
+    def __getitem__(self, item):
+        if self.preload:  # we have access to the data attribute
+            return super(FolderDataset, self).__getitem__(item)
+        datapoint = self.load_file(item)
+        datapoint = self.get_datapoint_version(datapoint, self.max_dataset_depth,
+                                               self.model_depth + self.model_dataset_depth_offset)
+        datapoint = self.alpha_fade(datapoint)
+        datapoint = adjust_dynamic_range(datapoint, self.range_in, self.range_out)
+        return torch.from_numpy(datapoint.astype('float32'))
+
+
+class DefaultImageFolderDataset(FolderDataset):
+
+    def __init__(self,
+                 dir_path,  # e.g. 'samples/'
+                 max_dataset_depth=None,
+                 create_unused_depths=False,
+                 preload=False,
+                 model_dataset_depth_offset=2,  # we start with 4x4 resolution instead of 1x1
+                 model_initial_depth=0,
+                 alpha=1.0,
+                 range_in=(0, 255),
+                 range_out=(-1, 1),
+                 imread_mode='L',
+                 scale_factor=2):
+        self.imread_mode = imread_mode
+        self.scale_factor = scale_factor
+        super(DefaultImageFolderDataset, self).__init__(dir_path, max_dataset_depth, create_unused_depths, preload,
+                                                 model_dataset_depth_offset, model_initial_depth, alpha, range_in,
+                                                 range_out)
+
+    def load_file(self, item):
+        im = imread(self.files[item], mode=self.imread_mode)
+        if im.ndim == 2:
+            im = im[np.newaxis]
+        assert im.ndim == 4
+        return im
+
+    def create_datapoint_from_depth(self, datapoint, datapoint_depth, target_depth):
+        datapoint = datapoint.astype(np.float32)
+        depthdiff = (datapoint_depth - target_depth)
+        datapoint = reduce(lambda acc, x: acc + datapoint[:, x[0]::(self.scale_factor**depthdiff),
+                                          x[1]::(self.scale_factor**depthdiff)],
+                           [(a,b) for a in range(self.scale_factor) for b in range(self.scale_factor)], 0)\
+                    / (self.scale_factor ** 2)
+        return np.uint8(np.clip(np.round(datapoint), self.range_in[0], self.range_in[1]))
+
+    def infer_max_dataset_depth(self, datapoint):
+        return int(math.log(datapoint.shape[-1], self.scale_factor))
+
+
+class SoundSpectrogramsDataset(DefaultImageFolderDataset):
+
+    def __init__(self,
+                 dir_path,  # e.g. 'samples/'
+                 max_dataset_depth=None,
+                 create_unused_depths=False,
+                 preload=False,
+                 model_dataset_depth_offset=2,  # we start with 4x4 resolution instead of 1x1
+                 model_initial_depth=0,
+                 alpha=1.0,
+                 range_in=(0, 255),
+                 range_out=(-1, 1),
+                 scale_factor=2,
+                 n_fft=1024,
+                 hop_length=128,
+                 frequency=16000,
+                 spec_mode='abslog'
+                 ):
+        assert n_fft == 2 ** int(np.log2(n_fft))
+        self.n_fft = n_fft
+        self.hop_length = hop_length
+        self.frequency = frequency
+        self.spec_mode = spec_mode
+        super(SoundSpectrogramsDataset, self).__init__(dir_path, max_dataset_depth, create_unused_depths, preload,
+                                                model_dataset_depth_offset, model_initial_depth, alpha, range_in,
+                                                range_out, scale_factor=scale_factor)
+
+    def load_file(self, item):
+        s, _ = sf.read(self.files[item], dtype='float32')
+        if s.ndim == 2:  # stereo to mono
+            s = (s.sum(axis=1)) / 2
+        s = lbr.stft(s, self.n_fft, self.hop_length)
+        s = s[:self.n_fft // 2, :self.n_fft // 2]
+        if self.spec_mode == 'abslog':
+            s = np.log(1 + np.abs(s))
+        elif self.spec_mode == 'real':
+            s = np.log(1 + np.abs(s.real)) * np.sign(s)
+        s = np.uint8(adjust_dynamic_range(s, (s.min(), s.max()), self.range_in))
+        return s[np.newaxis]
+
