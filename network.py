@@ -110,11 +110,6 @@ class Generator(nn.Module):
         self.blocks = nn.ModuleList([
             GBlock(nf(i-1), nf(i), num_channels)
             for i in range(2, R)
-            # GBlock(512, 256, (16, 16)),
-            # GBlock(256, 128, (32, 32)),
-            # GBlock(128, 64, (64, 64)),
-            # GBlock(64, 32, (128, 128)),
-            # GBlock(32, 16, (256, 256)),
         ])
 
         self.depth = 0
@@ -124,31 +119,25 @@ class Generator(nn.Module):
 
     def forward(self, x):
         h = x.unsqueeze(2).unsqueeze(3)
-        # print('raz', h.size())
         if self.normalize_latents:
             mean = torch.mean(h * h, 1, keepdim=True)
             dom = torch.rsqrt(mean + self.eps)
             h = h * dom
-        # print('dwa', h.size())
         h = self.block0(h, self.depth == 0)
-        # print('tri', h.size())
         if self.depth > 0:
             for i in range(self.depth - 1):
                 h = F.upsample(h, scale_factor=2)
                 h = self.blocks[i](h)
             h = F.upsample(h, scale_factor=2)
             ult = self.blocks[self.depth - 1](h, True)
-            # print('trololol', ult.size(), h.size(), self.blocks[self.depth - 2])
             if 0.0 < self.alpha < 1.0:
                 if self.depth > 1:
                     preult_rgb = self.blocks[self.depth - 2].toRGB(h)
                 else:
                     preult_rgb = self.block0.toRGB(h)
-                # print('preult_rgb {}, ult {}'.format(preult_rgb.size(), ult.size()))
             else:
                 preult_rgb = 0
             h = preult_rgb * (1-self.alpha) + ult * self.alpha
-        # print('Gen final shape for depth {} and alpha {}: {}'.format(self.depth, alpha, h.size()))
         return h
 
 
@@ -196,7 +185,6 @@ class MinibatchStddev(nn.Module):
     def forward(self, x):
         stddev_mean = Tstdeps(x)
         new_channel = stddev_mean.expand(x.size(0), 1, x.size(2), x.size(3))
-        # print(new_channel.size(), x.size())
         h = torch.cat((x, new_channel), dim=1)
         return h
 
@@ -224,11 +212,6 @@ class Discriminator(nn.Module):
         self.blocks = nn.ModuleList([
             DBlock(nf(i), nf(i-1), num_channels)
             for i in range(R-1, 1, -1)
-            # GBlock(512, 256, (16, 16)),
-            # GBlock(256, 128, (32, 32)),
-            # GBlock(128, 64, (64, 64)),
-            # GBlock(64, 32, (128, 128)),
-            # GBlock(32, 16, (256, 256)),
         ] + [DLastBlock(nf(1), nf(0), num_channels)])
 
         self.linear = nn.Linear(nf(0), 1)
@@ -238,28 +221,18 @@ class Discriminator(nn.Module):
         self.max_depth = len(self.blocks) - 1
 
     def forward(self, x):
-        blockno = self.R - self.depth - 2
         xhighres = x
         h = self.blocks[-(self.depth + 1)](xhighres, True)
-        # if self.depth > 0: print('entered with highres: {} and out of first: {}'.format(xhighres.size(), h.size()))
         if self.depth > 0:
             h = F.avg_pool2d(h, 2)
-            # print('h, ', h.size())
             if self.alpha > 0.0:
-                # print('alpha > 0')
                 xlowres = F.avg_pool2d(xhighres, 2)
                 preult_rgb = self.blocks[-self.depth].fromRGB(xlowres)
                 h = h * self.alpha + (1 - self.alpha) * preult_rgb
-                # print('dunn')
 
         for i in range(self.depth, 0, -1):
-            # print('inserting prev to next', i, self.blocks[-1])
-            # print(h.size())
             h = self.blocks[-i](h)
-            # print(h.size())
             if i > 1:
                 h = F.avg_pool2d(h, 2)
-        # if self.depth >= 0: print('linear', self.depth, self.linear, h.size())
         h = self.linear(h.squeeze(-1).squeeze(-1))
-        # if self.depth > 0: print('go!')
         return h
