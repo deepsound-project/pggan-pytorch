@@ -1,3 +1,7 @@
+try:
+    import comet_ml
+except ImportError as e:
+    print('Unable to load comet_ml: {}'.format(e))
 from torch.optim import Adam
 from torch.optim.lr_scheduler import LambdaLR
 from network import Generator, Discriminator
