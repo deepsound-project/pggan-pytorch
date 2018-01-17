@@ -63,7 +63,8 @@ class DepthManager(Plugin):
         full_passes, remaining_nimg = divmod(cur_nimg, self.lod_training_nimg + self.lod_transition_nimg)
         train_passes_rem, remaining_nimg = divmod(remaining_nimg, self.lod_training_nimg)
         depth = min(self.max_depth, full_passes + train_passes_rem)
-        alpha = remaining_nimg / self.lod_transition_nimg if train_passes_rem > 0 else 1.0
+        alpha = remaining_nimg / self.lod_transition_nimg \
+            if train_passes_rem > 0 and full_passes + train_passes_rem == depth else 1.0
         dataset = self.trainer.dataset
         if depth != self.depth:
             self.trainer.D.depth = self.trainer.G.depth = dataset.model_depth = depth
