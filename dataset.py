@@ -55,7 +55,6 @@ class OldH5Dataset(DepthDataset):
     def __init__(self,
          h5_path='datasets/cifar10-32.h5',
          model_dataset_depth_offset  = 2,  # we start with 4x4 resolution instead of 1x1
-         resolution                  = None,  # e.g. 32 (autodetect if None)
          max_images                  = None,
          model_initial_depth         = 0,
          alpha                       = 1.0,
@@ -67,7 +66,6 @@ class OldH5Dataset(DepthDataset):
         # Open HDF5 file and select resolution.
         self.h5_path = h5_path
         self.h5_file = h5py.File(h5_path, 'r')
-        self.resolution = resolution
         self.resolutions = sorted(list({v.shape[-1] for v in self.h5_file.values()}))
         self.resolution = self.resolutions[-1]
         self.h5_data = [self.h5_file['data{}x{}'.format(r, r)] for r in self.resolutions]
@@ -191,7 +189,7 @@ class FolderDataset(DepthDataset):
 class DefaultImageFolderDataset(FolderDataset):
 
     def __init__(self,
-                 dir_path='datasets/images',  # e.g. 'samples/'
+                 dir_path='datasets/images',
                  max_dataset_depth=None,
                  create_unused_depths=False,
                  preload=False,
@@ -240,7 +238,7 @@ class DefaultImageFolderDataset(FolderDataset):
 class SoundImageDataset(DefaultImageFolderDataset):
 
     def __init__(self,
-                 dir_path='datasets/piano',  # e.g. 'samples/'
+                 dir_path='datasets/piano',
                  max_dataset_depth=None,
                  create_unused_depths=False,
                  preload=False,
@@ -270,13 +268,14 @@ class SoundImageDataset(DefaultImageFolderDataset):
             s = (s.sum(axis=1)) / 2
         if self.img_mode == 'raw':
             size = int(np.log2(np.sqrt(s.shape[0])))
-            return s[:(2 ** size)**2].reshape((2 ** size, 2 ** size))[np.newaxis]
-        s = lbr.stft(s, self.n_fft, self.hop_length)
-        s = s[:self.n_fft // 2, :self.n_fft // 2]
-        if self.img_mode == 'abslog':
-            s = np.log(1 + np.abs(s))
-        elif self.img_mode == 'real':
-            s = np.log(1 + np.abs(s.real)) * np.sign(s)
+            s = s[:(2 ** size)**2].reshape((2 ** size, 2 ** size))
+        else:
+            s = lbr.stft(s, self.n_fft, self.hop_length)
+            s = s[:self.n_fft // 2, :self.n_fft // 2]
+            if self.img_mode == 'abslog':
+                s = np.log(1 + np.abs(s))
+            else:
+                s = np.log(1 + np.abs(s.real)) * np.sign(s)
         s = np.uint8(adjust_dynamic_range(s, (s.min(), s.max()), self.range_in))
         return s[np.newaxis]
 
