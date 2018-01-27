@@ -15,11 +15,8 @@ def calc_gradient_penalty(D, real_data, fake_data, iwass_lambda, iwass_target):
     if mixing_factors is None or real_data.size(0) != mixing_factors.size(0):
         mixing_factors = torch.cuda.FloatTensor(real_data.size(0), 1)
     mixing_factors.uniform_()
-    # mixing_factors = torch.cat([torch.rand((1,1)).cuda().expand(1, *real_data.size()[1:]) for _ in range((real_data.size(0)))])
 
-    # print('depth: sizes in loss: {} {} {}'.format(D.depth, real_data.size(), fake_data.size(), mixing_factors.size()))
     mixed_data = Variable(mul_rowwise(real_data, 1 - mixing_factors) + mul_rowwise(fake_data, mixing_factors), requires_grad=True)
-    # print('dupa', mixed_data.size())
     mixed_scores = D(mixed_data)
     if grad_outputs is None or mixed_scores.size(0) != grad_outputs.size(0):
         grad_outputs = torch.cuda.FloatTensor(mixed_scores.size())
