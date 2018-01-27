@@ -10,6 +10,8 @@ from functools import reduce, partial
 from trainer import Trainer
 import dataset
 from dataset import *
+import output_postprocess
+from output_postprocess import *
 from torch.utils.data import DataLoader
 from torch.utils.data.sampler import RandomSampler
 from plugins import *
@@ -42,6 +44,7 @@ default_params = OrderedDict(
     save_dataset='',
     load_dataset='',
     dataset_class='',
+    postprocessors=[]
 )
 
 
@@ -167,7 +170,12 @@ def main(params):
     for i, loss_name in enumerate(losses):
         trainer.register_plugin(EfficientLossMonitor(i, loss_name))
     trainer.register_plugin(SaverPlugin(result_dir, True, params['network_snapshot_ticks']))
-    trainer.register_plugin(SampleGenerator(result_dir, lambda x: random_latents(x, latent_size), **params['SampleGenerator']))
+
+    def subsitute_samples_path(d):
+        return {k:(os.path.join(result_dir, v) if k == 'samples_path' else v) for k,v in d.items()}
+    postprocessors = [ globals()[x](**subsitute_samples_path(params[x])) for x in params['postprocessors'] ]
+    trainer.register_plugin(OutputGenerator(lambda x: random_latents(x, latent_size),
+                                            postprocessors, **params['OutputGenerator']))
     trainer.register_plugin(AbsoluteTimeMonitor(params['resume_time']))
     trainer.register_plugin(LRScheduler(lr_scheduler_d, lr_scheduler_g))
     trainer.register_plugin(logger)
@@ -178,18 +186,19 @@ def main(params):
 
 if __name__ == "__main__":
     parser = ArgumentParser()
-    needarg_classes = [Trainer, Generator, Discriminator, DepthManager, SaverPlugin, SampleGenerator, Adam]
+    needarg_classes = [Trainer, Generator, Discriminator, DepthManager, SaverPlugin, OutputGenerator, Adam]
     needarg_classes += get_all_classes(dataset)
+    needarg_classes += get_all_classes(output_postprocess)
     excludes = {'Adam': {'lr'}}
     default_overrides = {'Adam': {'betas': (0.0, 0.99)}}
     auto_args = create_params(needarg_classes, excludes, default_overrides)
-    # default_params.update(auto_args)
     for k in default_params:
         parser.add_argument('--{}'.format(k), type=partial(generic_arg_parse, hinttype=type(default_params[k])))
     for cls in auto_args:
+        group = parser.add_argument_group(cls, 'Arguments for initialization of class {}'.format(cls))
         for k in auto_args[cls]:
             name = '{}.{}'.format(cls, k)
-            parser.add_argument('--{}'.format(name), type=generic_arg_parse)
+            group.add_argument('--{}'.format(name), type=generic_arg_parse)
             default_params[name] = auto_args[cls][k]
     parser.set_defaults(**default_params)
     params = get_structured_params(vars(parser.parse_args()))

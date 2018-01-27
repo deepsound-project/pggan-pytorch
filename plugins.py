@@ -3,15 +3,11 @@ import time
 from datetime import timedelta
 from glob import glob
 
-import PIL.Image
-import numpy as np
 import torch
 from torch.autograd import Variable
-from torch.nn import functional as F
 from torch.utils.trainer.plugins import LossMonitor, Logger
 from torch.utils.trainer.plugins.plugin import Plugin
-
-import utils
+from utils import generate_samples
 
 
 class DepthManager(Plugin):
@@ -175,120 +171,22 @@ class SaverPlugin(Plugin):
             os.remove(file_name)
 
 
-class SampleGenerator(Plugin):
+class OutputGenerator(Plugin):
 
-    def __init__(self, samples_path, sample_fn, image_grid_size=(3,2), drange=(-1,1), image_snapshot_ticks=3, resolution=512):
-        super(SampleGenerator, self).__init__([(image_snapshot_ticks, 'epoch')])
-        self.samples_path = samples_path
-        # Setup snapshot image grid.
-        if image_grid_size is None:
-            w, h = (resolution,) * 2
-            image_grid_size = np.clip(1920 // w, 3, 16), np.clip(1080 // h, 2, 16)
-        self.image_grid_size = image_grid_size
-        self.resolution = resolution
+    def __init__(self, sample_fn, output_postprocessors, samples_count=6, output_snapshot_ticks=3):
+        super(OutputGenerator, self).__init__([(output_snapshot_ticks, 'epoch')])
         self.sample_fn = sample_fn
-        self.drange = drange
+        self.output_postprocessors = output_postprocessors
+        self.samples_count = samples_count
 
     def register(self, trainer):
         self.trainer = trainer
-        self.G = trainer.G
-
-    def gen_fn(self):
-        x = Variable(self.sample_fn(np.prod(self.image_grid_size)))
-        z = self.G.forward(x.cuda())
-        if z.size(-1) < self.resolution:
-            z = F.upsample(z, size=(self.resolution, self.resolution))
-        z = z.cpu().data.numpy()
-        return z
-
-    # def first_gen(self, x):
-    #     tmp = self.G.depth, self.G.alpha
-    #     (self.G.depth, self.G.alpha) = self.max_depth, 1.0
-    #     z = self.gen_fn(x)
-    #     (self.G.depth, self.G.alpha) = tmp
-    #     return z
-
-    def _create_image_grid(self, images): # TODO test with 3-channel
-        w, h = self.image_grid_size
-        return np.vstack([
-                    np.vstack([images[(j*w):(j+1)*w,:,i].ravel() for i in range(images.shape[-1])])
-                    for j in range(h)
-               ])
-
-    def create_image_grid(self, images):
-        num, img_w, img_h = images.shape[0], images.shape[-1], images.shape[-2]
-        grid_size = self.image_grid_size
-
-        grid_w = max(int(np.ceil(np.sqrt(num))), 1)
-        grid_h = max((num - 1) // grid_w + 1, 1)
-
-        grid = np.zeros(list(images.shape[1:-2]) + [grid_h * img_h, grid_w * img_w], dtype=images.dtype)
-        for idx in range(num):
-            x = (idx % grid_w) * img_w
-            y = (idx // grid_w) * img_h
-            grid[..., y: y + img_h, x: x + img_w] = images[idx]
-        return grid
-
-    def convert_to_pil_image(self, image):
-        format = 'RGB'
-        if image.ndim == 3:
-            if image.shape[0] == 1:
-                image = image[0]  # grayscale CHW => HW
-                format = 'L'
-            else:
-                image = image.transpose(1, 2, 0)  # CHW -> HWC
-                format = 'RGB'
-
-        image = utils.adjust_dynamic_range(image, self.drange, (0, 255))
-        image = image.round().clip(0, 255).astype(np.uint8)
-        return PIL.Image.fromarray(image, format)
 
     def epoch(self, epoch_index):
-        out = self.gen_fn()
-        im = self.create_image_grid(out)
-        im = self.convert_to_pil_image(im)
-        im.save(os.path.join(self.samples_path, 'fakes{:06}.png'.format(self.trainer.cur_nimg // 1000)))
-
-#
-# class BaseGeneratorPlugin(Plugin):
-#
-#     pattern = 'ep{}-s{}.wav'
-#
-#     def __init__(self, samples_path, sample_rate,
-#                  sample_id_fn=(lambda i: i + 1)):
-#         super().__init__([(1, 'epoch')])
-#         self.samples_path = samples_path
-#         self.sample_rate = sample_rate
-#         self.sample_id_fn = sample_id_fn
-#
-#     def _generate(self):
-#         raise NotImplementedError()
-#
-#     def epoch(self, epoch_index):
-#         samples = self._generate().cpu().float().numpy()
-#         (n_samples, _) = samples.shape
-#         for i in range(n_samples):
-#             write_wav(
-#                 os.path.join(
-#                     self.samples_path,
-#                     self.pattern.format(epoch_index, self.sample_id_fn(i))
-#                 ),
-#                 samples[i, :], sr=self.sample_rate, norm=True
-#             )
-#
-#
-# class UnconditionalGeneratorPlugin(BaseGeneratorPlugin):
-#
-#     def __init__(self, samples_path, n_samples, sample_length, sample_rate):
-#         super().__init__(samples_path, sample_rate)
-#         self.n_samples = n_samples
-#         self.sample_length = sample_length
-#
-#     def register(self, trainer):
-#         self.generator = Generator(trainer.model.model, trainer.cuda)
-#
-#     def _generate(self):
-#         return self.generator(self.n_samples, self.sample_length)
+        gen_input = Variable(self.sample_fn(self.samples_count)).cuda()
+        out = generate_samples(self.trainer.G, gen_input)
+        for proc in self.output_postprocessors:
+            proc(out, self.trainer.cur_nimg // 1000)
 
 
 class CometPlugin(Plugin):

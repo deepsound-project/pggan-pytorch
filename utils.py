@@ -5,6 +5,12 @@ import inspect
 from pickle import load, dump
 
 
+def generate_samples(generator, gen_input):
+    out = generator.forward(gen_input)
+    out = out.cpu().data.numpy()
+    return out
+
+
 def save_pkl(fname, obj):
     with open(fname, 'wb') as f:
         dump(obj, f)
@@ -22,6 +28,29 @@ def adjust_dynamic_range(data, range_in, range_out):
         scale_factor = (max_out - min_out) / (max_in - min_in)
         data = (data - min_in) * scale_factor + min_out
     return data
+
+
+def numpy_upsample_nearest(x, n_last_dims, size=None, scale_factor=None):
+    try:
+        shape = x.shape[-n_last_dims:]
+        if size is not None:
+            if type(size) is int:
+                size = (size,) * n_last_dims
+            for i in range(n_last_dims):
+                if size[i] % shape[i] != 0:
+                    raise Exception('Incompatible sizes: {} and {}.'.format(x.shape, size))
+            scale_factor = tuple((target_s // source_s for source_s, target_s in zip(shape, size)))
+        if scale_factor is None:
+            raise Exception('Either size or scale_factor must be specified.')
+        if type(scale_factor) is int:
+            scale_factor = (scale_factor,) * n_last_dims
+        for i in range(n_last_dims):
+            if scale_factor[i] > 1:
+                x = x.repeat(scale_factor[i], axis=-n_last_dims + i)
+        return x
+    except Exception as e:
+        print('Args or shapes in numpy_upsample: x {} size {} scale_factor {}'.format(x.shape, size, scale_factor))
+        raise e
 
 
 def random_latents(num_latents, latent_size):
