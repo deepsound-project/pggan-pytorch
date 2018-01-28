@@ -15,16 +15,20 @@ This code requires Python 3.5+ and was tested under PyTorch 0.2+. Other requirem
 ## Datasets
 
 Training on new data is as simple as implementing your own DepthDataset (see dataset.py) with all required methods. A few useful Datasets were already implemented:
-    * OldH5Dataset - allows use of (fitting in memory!) datasets from original implementation
-    * DefaultImageFolderDataset - takes any folder with images and creates a proper dataset
-    * SoundImageDataset - takes any folder with .wav files of length at least (n_fft\*hop_length/2 + n_fft) (where n_fft and hop_length are desired parameters of stft). For example, a good start is to use 16000 hz, 5 second audio created by script from our [SampleRNN PyTorch implementation](https://github.com/deepsound/samplernn-pytorch/). This class can be a dataset of either magnitude spectrograms, "raw" data or real-part stfts, with best results obtained with magnitude spectrograms.
+..* OldH5Dataset - allows use of (fitting in memory!) datasets from original implementation
+..* DefaultImageFolderDataset - takes any folder with images and creates a proper dataset
+..* SoundImageDataset - takes any folder with .wav files of length at least (n_fft\*hop_length/2 + n_fft) (where n_fft and hop_length are desired parameters of stft). For example, a good start is to use 16000 hz, 5 second audio created by script from our [SampleRNN PyTorch implementation](https://github.com/deepsound/samplernn-pytorch/). This class can be a dataset of either magnitude spectrograms, "raw" data or real-part stfts, with best results obtained with magnitude spectrograms.
 
 ## Training
 
 To train the model you need to run `train.py`. All model and training hyperparameters are settable in the command line in a very generic way - you can essentially pass ClassName.init_param_name for every class that will be instantiated during the training process. Sometimes you need to specify which classes you may want to instantiate, e.g. which kind of dataset or which output postprocessors. Most hyperparameters have sensible default values, so you don't need to provide all of them. Run `python train.py -h` for details. With piano dataset from our script mentioned before, you can run:
 
 ```
-python pggan.py --exp_name TEST --dataset_class SoundImageDataset --SoundImageDataset.dir_path PATH_TO_DATASET_FOLDER --SoundImageDataset.preload True --SoundImageDataset.img_mode abslog --save_dataset abs.pkl --postprocessors ['ImageSaver', 'SoundSaver'] --ImageSaver.samples_path images --SoundSaver.samples_path sound
+python pggan.py --exp_name TEST \
+    --dataset_class SoundImageDataset --SoundImageDataset.dir_path PATH_TO_DATASET_FOLDER \
+    --SoundImageDataset.preload True --SoundImageDataset.img_mode abslog \
+    --postprocessors ['ImageSaver', 'SoundSaver'] \
+    --ImageSaver.samples_path images --SoundSaver.samples_path sound
 ```
 
 If you would like to keep lod information from original implementation in logging, add --DepthManager.max_lod and --DepthManager.depth_offset parameters.
@@ -47,8 +51,8 @@ Take note, that with simple proper initializations of depth / plugin parameters,
 
 Original implementation: https://github.com/tkarras/progressive_growing_of_gans
 Few other inspirations:
-    * chainer-PGGAN: https://github.com/joisino/chainer-PGGAN
-    * PyTorch - progressive growing of gans: https://github.com/github-pengge/PyTorch-progressive_growing_of_gans
-    * wgan-gp pytorch - https://github.com/caogang/wgan-gp
+..* chainer-PGGAN: https://github.com/joisino/chainer-PGGAN
+..* PyTorch - progressive growing of gans: https://github.com/github-pengge/PyTorch-progressive_growing_of_gans
+..* wgan-gp pytorch - https://github.com/caogang/wgan-gp
 
 We want to highlight, that these were strong, but still just an inspiration for rewriting the code from scratch, even though a clear resemblence of the code from mentioned implementation can be seen.
