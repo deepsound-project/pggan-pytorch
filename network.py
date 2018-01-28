@@ -6,23 +6,17 @@ from torch.nn import functional as F
 
 class PGConv2d(nn.Module):
     def __init__(self, ch_in, ch_out, ksize=3, stride=1, pad=1,
-                 pixelnorm=True, wscale='impl', act='lrelu',
-                 winit='impl'):
+                 pixelnorm=True, wscale=True, act='lrelu'):
         super(PGConv2d, self).__init__()
 
-        if winit == 'paper':
-            init = lambda x: nn.init.normal(x, 0, 1)
-        elif winit == 'impl':
+        if wscale:
             init = lambda x: nn.init.kaiming_normal(x)
         else:
             init = lambda x: x
         self.conv = nn.Conv2d(ch_in, ch_out, ksize, stride, pad)
         init(self.conv.weight)
         if wscale:
-            if wscale == 'paper':
-                self.c = np.sqrt((ch_in * ch_out * ksize * ksize) / 2)
-            elif wscale == 'impl':
-                self.c = np.sqrt(torch.mean(self.conv.weight.data ** 2))
+            self.c = np.sqrt(torch.mean(self.conv.weight.data ** 2))
             self.conv.weight.data /= self.c
         else:
             self.c = 1.
@@ -86,8 +80,7 @@ class Generator(nn.Module):
         fmap_max            = 512,
         latent_size         = 512,
         normalize_latents   = True,
-        wscale          = 'impl',
-        winit           = 'impl',
+        wscale          = True,
         pixelnorm       = True,
         leakyrelu       = True):
         super(Generator, self).__init__()
@@ -107,7 +100,6 @@ class Generator(nn.Module):
         self.normalize_latents = normalize_latents
         layer_settings = {
             'wscale': wscale,
-            'winit': winit,
             'pixelnorm': pixelnorm,
             'act': 'lrelu' if leakyrelu else 'relu'
         }
@@ -202,8 +194,7 @@ class Discriminator(nn.Module):
         fmap_base           = 4096,
         fmap_decay          = 1.0,
         fmap_max            = 512,
-        wscale          = 'impl',
-        winit           = 'impl',
+        wscale          = True,
         pixelnorm       = False,
         leakyrelu       = True):
         super(Discriminator, self).__init__()
@@ -218,7 +209,6 @@ class Discriminator(nn.Module):
             return min(int(fmap_base / (2.0 ** (stage * fmap_decay))), fmap_max)
         layer_settings = {
             'wscale': wscale,
-            'winit': winit,
             'pixelnorm': pixelnorm,
             'act': 'lrelu' if leakyrelu else 'relu'
         }
