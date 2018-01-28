@@ -56,3 +56,7 @@ Few other inspirations:
 * wgan-gp pytorch - https://github.com/caogang/wgan-gp
 
 We want to highlight, that these were strong, but still just an inspiration for rewriting the code from scratch, even though a clear resemblence of the code from mentioned implementation can be seen.
+
+## Final remarks
+
+The code is in constant development. :) We publish it now, because you can always improve something. It is possible, that much more detailed implementations may arise for both PGGAN-general framework and Signal-Generating Progressively Growing GANs (SGPGGAN acronym isn't hopefully taken yet).
