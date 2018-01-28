@@ -10,7 +10,7 @@ The model and implementation proved itself to be succesful - and as for now, the
 
 ## Dependencies
 
-This code requires Python 3.5+ and was tested under PyTorch 0.2+. Other requirements depend on the usage, most important for sound generation being Librosa 0.4.3+. Installation instructions for PyTorch are available on their website: http://pytorch.org/. You can install the rest of the dependencies by running `pip install -r requirements.txt`.
+This code requires Python 3.5+ and was tested under PyTorch 0.2.0+. Other dependencies depend on the usage, most important for sound generation being Librosa 0.4.3+ and SoundFile 0.9.0+ (latter for efficient sound loading) and Pillow 4.0.0+ with scipy 0.19.0+ (possibly also works with earlier versions, these are the ones tested). Lastly, if you wish to use datasets created with original implementation's tool, you will need h5py 2.5.0+. Installation instructions for PyTorch are available on their website: http://pytorch.org/. You can install the rest of the dependencies for sound and image generation by running `pip install -r requirements.txt`.
 
 ## Datasets
 

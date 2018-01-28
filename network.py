@@ -103,7 +103,6 @@ class Generator(nn.Module):
             'pixelnorm': pixelnorm,
             'act': 'lrelu' if leakyrelu else 'relu'
         }
-        # print('no siemix', num_channels)
         self.block0 = GFirstBlock(latent_size, nf(1), num_channels, **layer_settings)
         self.blocks = nn.ModuleList([
             GBlock(nf(i-1), nf(i), num_channels, **layer_settings)

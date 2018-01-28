@@ -6,7 +6,7 @@ from torch.optim import Adam
 from torch.optim.lr_scheduler import LambdaLR
 from network import Generator, Discriminator
 from wgan_gp_loss import wgan_gp_G_loss, wgan_gp_D_loss
-from functools import reduce, partial
+from functools import partial
 from trainer import Trainer
 import dataset
 from dataset import *

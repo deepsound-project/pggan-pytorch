@@ -1,9 +1,14 @@
 import os
 import utils
 import numpy as np
-import PIL.Image
-import librosa as lbr
-from functools import reduce
+try:
+    import PIL.Image
+except ImportError as e:
+    print('Unable to load PIL.Image: {}.\nExporting images won\'t work.'.format(e))
+try:
+    import librosa as lbr
+except ImportError as e:
+    print('Unable to load librosa: {}.\nExporting sound won\'t work.'.format(e))
 from utils import adjust_dynamic_range, numpy_upsample_nearest
 
 
@@ -17,7 +22,7 @@ class ImageSaver(Postprocessor):
 
     output_file_format = 'fakes_{}.png'
 
-    def __init__(self, samples_path='.', drange=(-1,1), resolution=512, create_subdirs=True, img_postprocessors=None):
+    def __init__(self, samples_path='.', drange=(-1,1), resolution=512, create_subdirs=True):
         super(ImageSaver, self).__init__(samples_path)
         self.samples_path = samples_path
         if create_subdirs:
@@ -26,7 +31,6 @@ class ImageSaver(Postprocessor):
         self.resolution = resolution
         self.drange = drange
         self.mode = None
-        self.img_postprocessors = [lambda x: x] if not img_postprocessors else img_postprocessors
 
     def create_image_grid(self, images):
         (count, channels, img_h, img_w) = images.shape
@@ -51,7 +55,6 @@ class ImageSaver(Postprocessor):
                 image = image.transpose(1, 2, 0)
                 format = 'RGB'
 
-        # image = reduce(lambda acc, x: x(acc), self.img_postprocessors, image)
         image = utils.adjust_dynamic_range(image, self.drange, (0, 255))
 
         image = image.round().clip(0, 255).astype(np.uint8)

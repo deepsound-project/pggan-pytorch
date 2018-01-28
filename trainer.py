@@ -60,7 +60,6 @@ class Trainer(object):
             return
         while queue[0][0] <= time:
             plugin = queue[0][2]
-            # print('calling plugin {} in {} with triggers: {}'.format(plugin, queue_name, plugin.trigger_interval))
             getattr(plugin, queue_name)(*args)
             for trigger in plugin.trigger_interval:
                 if trigger[1] == queue_name:

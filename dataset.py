@@ -1,14 +1,31 @@
 from torch.utils.data import Dataset
 import numpy as np
 import torch
-import h5py
-import os
-import soundfile as sf
-import librosa as lbr
 import math
 from utils import adjust_dynamic_range
-from scipy.misc import imread
+try:
+    from scipy.misc import imread
+except ImportError as e:
+    print('Unable to load scipy: {}\nDefaultImageFolderDataset won\'t work.'.format(e))
 from functools import reduce
+try:
+    import h5py
+except ImportError as e:
+    print('Unable to load h5py: {}.\nOldH5Dataset won\'t work.'.format(e))
+import os
+LIBROSA_LOADED = False
+try:
+    import librosa as lbr
+    sound_load_fun = lambda path, freq, dtype: lbr.load(path, freq, dtype=dtype)
+    LIBROSA_LOADED = True
+except ImportError as e:
+    print('Unable to load librosa: {}.\nSoundImageDataset may work only in raw mode.')
+try:
+    import soundfile as sf
+    sound_load_fun = lambda path, _, dtype: sf.read(path, dtype=dtype)  # sf does not support sr in read, but infers
+except ImportError as e:
+    errstr = 'Switching sound loading to librosa.load' if LIBROSA_LOADED else 'SoundImageDataset won\'t work at all.'
+    print('Unable to load soundfile: {}.\n{}'.format(e, errstr))
 
 
 class DepthDataset(Dataset):
@@ -263,7 +280,7 @@ class SoundImageDataset(DefaultImageFolderDataset):
                                                 range_out, scale_factor=scale_factor)
 
     def load_file(self, item):
-        s, _ = sf.read(self.files[item], dtype='float32')
+        s, _ = sound_load_fun(self.files[item], self.frequency, dtype='float32')
         if s.ndim == 2:  # stereo to mono
             s = (s.sum(axis=1)) / 2
         if self.img_mode == 'raw':
