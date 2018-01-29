@@ -24,7 +24,7 @@ Training on new data is as simple as implementing your own DepthDataset (see dat
 To train the model you need to run `train.py`. All model and training hyperparameters are settable in the command line in a very generic way - you can essentially pass ClassName.init_param_name for every class that will be instantiated during the training process. Sometimes you need to specify which classes you may want to instantiate, e.g. which kind of dataset or which output postprocessors. Most hyperparameters have sensible default values, so you don't need to provide all of them. Run `python train.py -h` for details. With piano dataset from our script mentioned before, you can run:
 
 ```
-python pggan.py --exp_name TEST \
+python train.py --exp_name TEST \
     --dataset_class SoundImageDataset --SoundImageDataset.dir_path PATH_TO_DATASET_FOLDER \
     --SoundImageDataset.preload True --SoundImageDataset.img_mode abslog \
     --postprocessors ['ImageSaver', 'SoundSaver'] \
