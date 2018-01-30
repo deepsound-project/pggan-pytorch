@@ -45,7 +45,7 @@ There is a lot of unimplemented features of the original paper, such as conditio
 
 The training process in Trainer class resembles the original implementation notion of "nimg", "kimg" and "ticks" instead of "iterations" or "epochs". For the ease of use of several built-in plugins and to satisfy both PyTorch and the original implementation, "tick" is equivalent to "epoch".
 
-Take note, that with simple proper initializations of depth / plugin parameters, you can also train regular (non-progressive) GANs with this framework or your own progressively growing networks, which only need to specify their max_depth and make use of depth and alpha parameters.
+Take note, that with simple proper initializations of depth / plugin parameters, you can train your own progressively growing networks, which only need to specify their max_depth and make use of depth and alpha parameters. Or, you may wish to train regular (non-progressive) GANs with this framework - for ease of use, you just need to turn pass `--progressive_growing False` param.
 
 ## Acknowledgments
 

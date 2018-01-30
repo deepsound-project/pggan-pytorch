@@ -169,7 +169,7 @@ def main(params):
         trainer.register_plugin(DepthManager(get_dataloader, rl, max_depth, **params['DepthManager']))
     for i, loss_name in enumerate(losses):
         trainer.register_plugin(EfficientLossMonitor(i, loss_name))
-    
+
     checkpoints_dir = params['checkpoints_dir'] if params['checkpoints_dir'] else params['result_dir']
     trainer.register_plugin(SaverPlugin(checkpoints_dir, **params['SaverPlugin']))
 
