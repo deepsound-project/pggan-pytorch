@@ -143,7 +143,7 @@ class SaverPlugin(Plugin):
 
     last_pattern = 'network-snapshot-{}-{}.dat'
 
-    def __init__(self, checkpoints_path, keep_old_checkpoints, network_snapshot_ticks):
+    def __init__(self, checkpoints_path, keep_old_checkpoints=False, network_snapshot_ticks=40):
         super().__init__([(network_snapshot_ticks, 'epoch')])
         self.checkpoints_path = checkpoints_path
         self.keep_old_checkpoints = keep_old_checkpoints

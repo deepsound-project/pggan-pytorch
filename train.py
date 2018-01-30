@@ -30,7 +30,6 @@ default_params = OrderedDict(
     total_kimg=3000,
     tick_kimg_default=20,
     image_snapshot_ticks=3,
-    network_snapshot_ticks=40,
     resume_network='',
     resume_time=0,
     num_data_workers=16,
@@ -44,7 +43,8 @@ default_params = OrderedDict(
     save_dataset='',
     load_dataset='',
     dataset_class='',
-    postprocessors=[]
+    postprocessors=[],
+    checkpoints_dir='',
 )
 
 
@@ -169,7 +169,9 @@ def main(params):
         trainer.register_plugin(DepthManager(get_dataloader, rl, max_depth, **params['DepthManager']))
     for i, loss_name in enumerate(losses):
         trainer.register_plugin(EfficientLossMonitor(i, loss_name))
-    trainer.register_plugin(SaverPlugin(result_dir, True, params['network_snapshot_ticks']))
+    
+    checkpoints_dir = params['checkpoints_dir'] if params['checkpoints_dir'] else params['result_dir']
+    trainer.register_plugin(SaverPlugin(checkpoints_dir, **params['SaverPlugin']))
 
     def subsitute_samples_path(d):
         return {k:(os.path.join(result_dir, v) if k == 'samples_path' else v) for k,v in d.items()}
