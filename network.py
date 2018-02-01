@@ -128,7 +128,7 @@ class Generator(nn.Module):
                 h = self.blocks[i](h)
             h = F.upsample(h, scale_factor=2)
             ult = self.blocks[self.depth - 1](h, True)
-            if 0.0 < self.alpha < 1.0:
+            if self.alpha < 1.0:
                 if self.depth > 1:
                     preult_rgb = self.blocks[self.depth - 2].toRGB(h)
                 else:
@@ -227,7 +227,7 @@ class Discriminator(nn.Module):
         h = self.blocks[-(self.depth + 1)](xhighres, True)
         if self.depth > 0:
             h = F.avg_pool2d(h, 2)
-            if self.alpha > 0.0:
+            if self.alpha < 1.0:
                 xlowres = F.avg_pool2d(xhighres, 2)
                 preult_rgb = self.blocks[-self.depth].fromRGB(xlowres)
                 h = h * self.alpha + (1 - self.alpha) * preult_rgb
