@@ -170,7 +170,7 @@ def main(params):
     for i, loss_name in enumerate(losses):
         trainer.register_plugin(EfficientLossMonitor(i, loss_name))
 
-    checkpoints_dir = params['checkpoints_dir'] if params['checkpoints_dir'] else params['result_dir']
+    checkpoints_dir = params['checkpoints_dir'] if params['checkpoints_dir'] else result_dir
     trainer.register_plugin(SaverPlugin(checkpoints_dir, **params['SaverPlugin']))
 
     def subsitute_samples_path(d):
