@@ -106,7 +106,7 @@ class OldH5Dataset(DepthDataset):
     def alpha_fade(self, datapoint):
         c, h, w = datapoint.shape
         t = datapoint.reshape(c, h // 2, 2, w // 2, 2).mean((2, 4)).repeat(2, 1).repeat(2, 2)
-        datapoint = (datapoint + (t - datapoint) * self.alpha)
+        datapoint = (datapoint + (t - datapoint) * (1 - self.alpha))
         return datapoint
 
     def close(self):
