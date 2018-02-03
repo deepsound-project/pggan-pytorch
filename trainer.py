@@ -81,17 +81,24 @@ class Trainer(object):
                 self.call_plugins('epoch', self.cur_tick)
 
     def train(self):
-        real_images_expr = next(self.dataiter).cuda()
         fake_latents_in = self.random_latents_generator().cuda()
 
         # Calculate loss and optimize
         d_losses = [0, 0, 0]
         for i in range(self.D_training_repeats):
+            # get real images
+            real_images_expr = next(self.dataiter).cuda()
+            self.cur_nimg += real_images_expr.size(0)
+            # calculate loss
             d_losses = self.D_loss(self.D, self.G, real_images_expr, fake_latents_in)
             d_losses = tuple(d_losses)
             D_loss = d_losses[0]
             D_loss.backward()
+            # backprop through D
             self.optimizer_d.step()
+            # get new fake latents for next iterations or the generator
+            # in the original implementation if separate_funcs were True, generator optimized on different fake_latents
+            fake_latents_in = self.random_latents_generator().cuda()
 
         g_losses = self.G_loss(self.G, self.D, fake_latents_in)
         if type(g_losses) is list:
@@ -102,8 +109,6 @@ class Trainer(object):
         G_loss.backward()
         self.optimizer_g.step()
 
-        # tick_train_out.append((G_loss, D_loss, D_real, D_fake))
-        self.cur_nimg += real_images_expr.size(0)
         self.iterations += 1
         self.call_plugins('iteration', self.iterations, *(g_losses + d_losses))
 
