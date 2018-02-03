@@ -76,7 +76,7 @@ class SoundSaver(Postprocessor):
     output_file_format = 'fakes_sound_{}_{}.wav'
 
     def __init__(self, samples_path='.', drange=(-1, 1), resolution=512, mode='abslog', sample_rate=16000,
-                 hop_length=128, create_subdirs=True, verbose=False):
+                 hop_length=128, create_subdirs=True, verbose=False, griffin_lim_iter=100):
         super(SoundSaver, self).__init__(samples_path)
         self.samples_path = samples_path
         if create_subdirs:
@@ -87,11 +87,12 @@ class SoundSaver(Postprocessor):
         self.hop_length = hop_length
         self.verbose = verbose
         self.resolution = resolution
+        self.griffin_lim_iter = griffin_lim_iter
 
-    def reconstruct_from_magnitude(self, stft_mag, it=100):
+    def reconstruct_from_magnitude(self, stft_mag):
         n_fft = (stft_mag.shape[0] - 1) * 2
         x = np.random.randn((stft_mag.shape[1] - 1) * self.hop_length)
-        for i in range(it):
+        for i in range(self.griffin_lim_iter):
             stft_rec = lbr.stft(x, n_fft=n_fft, hop_length=self.hop_length)
             angle = np.angle(stft_rec)
             my_stft = stft_mag * np.exp(1.0j * angle)
