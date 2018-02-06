@@ -144,7 +144,7 @@ class SaverPlugin(Plugin):
     last_pattern = 'network-snapshot-{}-{}.dat'
 
     def __init__(self, checkpoints_path, keep_old_checkpoints=False, network_snapshot_ticks=40):
-        super().__init__([(network_snapshot_ticks, 'epoch')])
+        super().__init__([(network_snapshot_ticks, 'epoch'), (1, 'end')])
         self.checkpoints_path = checkpoints_path
         self.keep_old_checkpoints = keep_old_checkpoints
         self._best_val_loss = float('+inf')
@@ -165,6 +165,9 @@ class SaverPlugin(Plugin):
                 )
             )
 
+    def end(self, *args):
+        self.epoch(*args)
+
     def _clear(self, pattern):
         pattern = os.path.join(self.checkpoints_path, pattern)
         for file_name in glob(pattern):
@@ -174,7 +177,7 @@ class SaverPlugin(Plugin):
 class OutputGenerator(Plugin):
 
     def __init__(self, sample_fn, output_postprocessors, samples_count=6, output_snapshot_ticks=3):
-        super(OutputGenerator, self).__init__([(output_snapshot_ticks, 'epoch')])
+        super(OutputGenerator, self).__init__([(output_snapshot_ticks, 'epoch'), (1, 'end')])
         self.sample_fn = sample_fn
         self.output_postprocessors = output_postprocessors
         self.samples_count = samples_count
@@ -187,6 +190,9 @@ class OutputGenerator(Plugin):
         out = generate_samples(self.trainer.G, gen_input)
         for proc in self.output_postprocessors:
             proc(out, self.trainer.cur_nimg // 1000)
+
+    def end(self, *args):
+        self.epoch(*args)
 
 
 class CometPlugin(Plugin):

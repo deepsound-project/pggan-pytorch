@@ -40,7 +40,8 @@ class Trainer(object):
         self.plugin_queues = {
             'iteration': [],
             'epoch': [],
-            's':    []
+            's':    [],
+            'end':  []
         }
 
     def register_plugin(self, plugin):
@@ -79,6 +80,7 @@ class Trainer(object):
                 self.stats['kimg_stat']['val'] = self.cur_nimg / 1000.
                 self.stats['tick_stat']['val'] = self.cur_tick
                 self.call_plugins('epoch', self.cur_tick)
+        self.call_plugins('end', 1)
 
     def train(self):
         fake_latents_in = self.random_latents_generator().cuda()
