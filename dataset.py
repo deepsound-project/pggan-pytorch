@@ -66,6 +66,9 @@ class DepthDataset(Dataset):
         # print(data[0])
         return torch.from_numpy(datapoint.astype('float32'))
 
+    def close(self):
+        pass
+
 
 class OldH5Dataset(DepthDataset):
 
